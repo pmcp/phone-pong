@@ -72,6 +72,7 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
     </div>
     <p class="err" id="err" hidden></p>
     <button class="ghost" id="btnSolo">Practice alone</button>
+    <p class="small" id="ver">v8</p>
   </div>
 </div>
 
@@ -111,7 +112,9 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const them={fx:{},stk:1,bbl:1,banana:0};
+const VER=8;   // also shown on the start screen
+$('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
+const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
   mult:1,themMult:1,cookies:[],fx:{},banana:null,zapN:0,zapK:'',seenZap:0,nextCookie:0,ball:null,paddleX:.5,targetX:.5,padV:0,touching:false,parts:[],shake:0,bbl:1,stk:1,serveAt:0,msg:'',msgUntil:0,trail:[]};
 // every multiplier on the table (yours and hers) speeds the ball up on both halves, until someone loses the ball
@@ -151,7 +154,7 @@ cv.addEventListener('pointermove',e=>{S.targetX=e.clientX/W});
 /* ---------- direct phone-to-phone link (PeerJS / WebRTC) ---------- */
 let peer=null, conn=null;
 function showErr(t){$('err').textContent=t;$('err').hidden=!t}
-function pub(){if(conn&&conn.open){try{conn.send({role:S.role,game:S.game,lost:S.lost,mult:S.mult,out:{n:S.outN,x:S.outX||0,vx:S.outVx||0,vy:S.outVy||0,r:S.outR||0,s:S.outS||0},zap:{n:S.zapN,k:S.zapK},st:myStatus()})}catch(e){}}}
+function pub(){if(conn&&conn.open){try{conn.send({role:S.role,game:S.game,lost:S.lost,mult:S.mult,out:{n:S.outN,x:S.outX||0,vx:S.outVx||0,vy:S.outVy||0,r:S.outR||0,s:S.outS||0},zap:{n:S.zapN,k:S.zapK},st:myStatus(),v:VER})}catch(e){}}}
 
 function myStatus(){
   const now=performance.now(),fx={};
@@ -194,6 +197,7 @@ function setup(c){
 function onOther(pr){
   if(typeof pr.role!=='string')return;
   readStatus(pr.st);
+  if(pr.v!==VER&&!warnedVer){warnedVer=true;setTimeout(()=>flash(pr.v>VER?'reload me \u21bb':'partner: please reload \u21bb',3500),2500)}
   if(!S.otherPeer){S.otherPeer='them';$('waiting').hidden=true;buzz(30);blip(660,.15);pub()}
   // guest picks the opposite colour of whoever is there
   if(pr.role===S.role){S.role=S.role==='a'?'b':'a';pub();paintHud()}
@@ -450,7 +454,16 @@ function draw(now){
     ctx.stroke();ctx.restore();ctx.restore();
   }
   if(S.banana)drawBanana(S.banana.x*u,S.banana.y*u,.045*u,Math.sin(now/400)*.15);
-  for(const k of S.cookies){const sc=backOut((now-k.born)/380),x=k.x*u,y=k.y*u;ctx.globalAlpha=clamp((PY()-k.y)/.3,0,1);ctx.save();ctx.translate(x,y);ctx.scale(sc,sc);ctx.translate(-x,-y);drawItem(k,now,u);ctx.restore();ctx.globalAlpha=1}
+  for(const k of S.cookies){const sc=backOut((now-k.born)/380),x=k.x*u,y=k.y*u,al=clamp((PY()-k.y)/.3,0,1);
+    const self=k.t==='cookie'||(FX[k.t]&&FX[k.t].self),glow=self?'255,216,110':'201,162,255',ph=now/1000+k.w;
+    // soft pulsing halo
+    ctx.globalAlpha=al*(.35+.2*Math.sin(ph*5));ctx.fillStyle=`rgba(${glow},.55)`;ctx.beginPath();ctx.arc(x,y,CR*u*(1.6+.15*Math.sin(ph*5)),0,7);ctx.fill();
+    // twinkles circling it
+    ctx.globalAlpha=al;for(let i=0;i<3;i++){const a=ph*2.2+i*2.09,tw=.5+.5*Math.sin(ph*9+i*2),sx=x+Math.cos(a)*CR*u*1.7,sy=y+Math.sin(a)*CR*u*1.4,sr=CR*u*.18*tw;
+      ctx.fillStyle=self?'#ffd86e':'#c9a2ff';ctx.beginPath();for(let j=0;j<8;j++){const rr=j%2?sr*.35:sr,aa=j*Math.PI/4;ctx.lineTo(sx+Math.cos(aa)*rr,sy+Math.sin(aa)*rr)}ctx.closePath();ctx.fill()}
+    // bouncy breathing + wobble
+    const br=1+.07*Math.sin(ph*6),wob=Math.sin(ph*3.3)*.18;
+    ctx.save();ctx.translate(x,y);ctx.rotate(wob);ctx.scale(sc*br,sc/br);ctx.translate(-x,-y);drawItem(k,now,u);ctx.restore();ctx.globalAlpha=1}
   drawParts(u);
   // paddle: shows every active status on itself
   squish*=.85;
@@ -479,21 +492,13 @@ function draw(now){
 
 // a little card in the corner showing her paddle as it is right now, plus her timers
 function drawThem(now,u){
-  const ton=k=>now<(them.fx[k]||0);
-  const cw=.32*u,ch=.24*u,x0=u-cw-.03*u,y0=56,cx=x0+cw/2;
-  ctx.save();
-  ctx.fillStyle='rgba(255,253,251,.85)';ctx.strokeStyle='#f6c4d4';ctx.lineWidth=2.5;ctx.beginPath();ctx.roundRect(x0,y0,cw,ch,16);ctx.fill();ctx.stroke();
-  ctx.font=`${Math.round(.03*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='left';ctx.fillStyle='rgba(91,58,74,.6)';ctx.fillText('them',x0+10,y0+.04*u);
-  // her paddle, drawn exactly like yours, just small
-  drawPaddle(x0+cw/2,y0+.1*u,.45,themStat(now),theirColor(),now,u,0);
-  // her timers
-  const list=[];for(const k in FX){if(k==='banana')continue;const t=(them.fx[k]||0)-now;if(t>0)list.push({k,t})}
-  if(now<them.banana)list.push({k:'banana',t:them.banana-now});
-  list.sort((a,b)=>a.t-b.t);
-  ctx.font=`${Math.round(.026*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';
-  list.slice(0,2).forEach((e,i)=>{const f=FX[e.k];ctx.fillStyle=f.self?'#a8781a':'#7a52c7';
-    ctx.fillText(f.label+(e.k==='sticky'&&them.stk>1?' \u00d72':'')+(e.k==='bigball'&&them.bbl>1?' \u00d7'+them.bbl:'')+' '+Math.ceil(e.t/1000),cx,y0+ch-.045*u+i*.03*u-(list.length>1?.015*u:0))});
-  if(!list.length){ctx.fillStyle='rgba(91,58,74,.4)';ctx.fillText('normal',cx,y0+ch-.03*u)}
+  const cx=u*.86,top=64;
+  ctx.save();ctx.globalAlpha=.7;
+  ctx.font=`${Math.round(.024*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';ctx.fillStyle='#5b3a4a';ctx.fillText('them',cx,top-.035*u);
+  drawPaddle(cx,top,.32,themStat(now),theirColor(),now,u,0);
+  let best=null;for(const k in FX){const t=k==='banana'?them.banana-now:(them.fx[k]||0)-now;if(t>0&&(!best||t<best.t))best={k,t}}
+  if(best){const f=FX[best.k];ctx.fillStyle=f.self?'#a8781a':'#7a52c7';ctx.font=`${Math.round(.022*u)}px "Mochiy Pop One", system-ui`;
+    ctx.fillText(f.label+' '+Math.ceil(best.t/1000),cx,top+.06*u)}
   ctx.restore();
 }
 const myStat=now=>({on:k=>on(k,now),stk:S.stk||1,bbl:S.bbl||1,mult:S.mult,banana:!!S.banana});
@@ -622,6 +627,7 @@ $('btnRematch').onclick=()=>{audio();newGame(Math.max(S.game,S.otherGame)+1,true
 (async()=>{try{await navigator.wakeLock?.request('screen')}catch(e){}})();
 const hc=(location.hash||'').slice(1).toUpperCase();
 if(/^[A-Z]{4}$/.test(hc)){$('codeIn').value=hc;try{history.replaceState(null,'',location.pathname)}catch(e){}addEventListener('load',()=>enter(hc,'b'))}
+setInterval(()=>{if(S.mode==='online'&&conn&&conn.open)pub()},1000);   // keep her view of my status fresh
 requestAnimationFrame(step);
 })();
 </script>
