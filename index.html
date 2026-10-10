@@ -38,19 +38,23 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--butter);outline
 input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing:.3em;text-transform:uppercase;border:3px solid var(--line);border-radius:18px;padding:8px 4px;color:var(--ink);background:var(--sky2);width:100%;box-sizing:border-box}
 .code{font-family:var(--display);font-size:52px;letter-spacing:.18em;color:var(--ink);background:var(--sky2);border:3px dashed var(--pink);border-radius:20px;padding:6px 0 2px}
 .small{font-size:13px;opacity:.75}
+.qr{justify-self:center;width:180px;height:180px;background:#fff;border:3px solid var(--line);border-radius:20px;padding:8px}
+.qr svg{width:100%;height:100%;display:block}
+.mult{font-size:14px;color:#c98a1d}
 .err{color:#d2416b;font-size:14px}
 .big{font-family:var(--display);font-size:56px;color:var(--pink);text-shadow:3px 3px 0 var(--butter);margin:0}
 @media (prefers-reduced-motion:reduce){button{transition:none}}
 </style>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 </head>
 <body>
 
 <canvas id="c"></canvas>
 <div class="top" id="topHint" hidden>&#x2191; &#x30cd;&#x30c3;&#x30c8; &#xb7; the net &#x2191;</div>
 <div class="hud" id="hud" hidden>
-  <div class="chip"><span class="dot" id="meDot"></span><span id="sMe">0</span></div>
-  <div class="chip"><span class="dot" id="themDot"></span><span id="sThem">0</span></div>
+  <div class="chip"><span class="dot" id="meDot"></span><span id="sMe">0</span><span class="mult" id="mMe"></span></div>
+  <div class="chip"><span class="dot" id="themDot"></span><span id="sThem">0</span><span class="mult" id="mThem"></span></div>
 </div>
 
 <div class="ov" id="lobby">
@@ -71,9 +75,10 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
 <div class="ov" id="waiting" hidden>
   <div class="panel">
     <p class="jp">&#x307e;&#x3063;&#x3066;&#x306d;&#x2026;</p>
-    <p>Tell your partner this code:</p>
+    <p>Let your partner scan this, or tell them the code:</p>
+    <div class="qr" id="qr" aria-label="QR code to join"></div>
     <div class="code" id="codeOut">----</div>
-    <p class="small">They open this same page, tap Join and type it in. Then lay the phones top to top.</p>
+    <p class="small">Scan with the iPhone camera, or open this page, tap Join and type the code. Then lay the phones top to top.</p>
     <button class="ghost" id="btnBack">Back</button>
   </div>
 </div>
@@ -89,7 +94,7 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
 
 <script>
 (()=>{
-const WIN=7, PINK='#ff8fb1', MINT='#7fd8c3';
+const WIN=11, PINK='#ff8fb1', MINT='#7fd8c3';
 const $=id=>document.getElementById(id);
 const cv=$('c'), ctx=cv.getContext('2d');
 let W=0,Hpx=0,dpr=1,H=1.6; // H = half-court length in width units
@@ -104,8 +109,8 @@ function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
 const S={mode:'lobby',role:'a',room:null,code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
-  ball:null,paddleX:.5,targetX:.5,serveAt:0,msg:'',msgUntil:0,trail:[]};
-const PW=.3, PY=()=>H-.2, BR=.04;
+  mult:1,themMult:1,cookies:[],nextCookie:0,ball:null,paddleX:.5,targetX:.5,serveAt:0,msg:'',msgUntil:0,trail:[]};
+const PW=.3, PY=()=>H-.2, BR=.04, CR=.05;
 const myColor=()=>S.role==='a'?PINK:MINT, theirColor=()=>S.role==='a'?MINT:PINK;
 
 /* ---------- input ---------- */
@@ -116,18 +121,18 @@ cv.addEventListener('pointermove',e=>{S.targetX=e.clientX/W});
 /* ---------- direct phone-to-phone link (PeerJS / WebRTC) ---------- */
 let peer=null, conn=null;
 function showErr(t){$('err').textContent=t;$('err').hidden=!t}
-function pub(){if(conn&&conn.open){try{conn.send({role:S.role,game:S.game,lost:S.lost,out:{n:S.outN,x:S.outX||0,vx:S.outVx||0,vy:S.outVy||0}})}catch(e){}}}
+function pub(){if(conn&&conn.open){try{conn.send({role:S.role,game:S.game,lost:S.lost,mult:S.mult,out:{n:S.outN,x:S.outX||0,vx:S.outVx||0,vy:S.outVy||0}})}catch(e){}}}
 
 function enter(code,role){
   showErr('');
   if(!window.Peer){showErr('Could not load the connection library. Check your internet and reload.');return}
   try{peer&&peer.destroy()}catch(e){}
-  S.code=code;S.role=role;S.game=1;S.lost=0;S.themLost=0;S.outN=0;S.seenN=0;S.served=0;S.ball=null;S.otherPeer=null;
+  S.code=code;S.role=role;S.game=1;S.lost=0;S.themLost=0;S.mult=1;S.themMult=1;S.cookies=[];S.outN=0;S.seenN=0;S.served=0;S.ball=null;S.otherPeer=null;
   const id='phonepong-'+code.toLowerCase();
   peer=role==='a'?new Peer(id):new Peer();
   peer.on('open',()=>{
     S.mode='online';$('lobby').hidden=true;$('hud').hidden=false;$('topHint').hidden=false;paintHud();
-    if(role==='a'){$('codeOut').textContent=code;$('waiting').hidden=false}
+    if(role==='a'){$('codeOut').textContent=code;drawQR(code);$('waiting').hidden=false}
     else{flash('connecting\u2026',4000);setup(peer.connect(id,{reliable:true}))}
   });
   peer.on('connection',c=>{if(conn&&conn.open){c.close();return}setup(c)});
@@ -154,8 +159,9 @@ function onOther(pr){
   if(g>S.game){newGame(g,false)}
   S.otherGame=g;
   if(g===S.game){
+    S.themMult=Math.max(1,Math.min(9,+pr.mult||1));
     const tl=+pr.lost||0;
-    if(tl>S.themLost){S.themLost=tl;onPoint(true)}
+    if(tl>S.themLost){const v=tl-S.themLost;S.themLost=tl;S.mult=1;pub();onPoint(true,v)}
     const out=pr.out||{};
     if(+out.n>S.seenN){S.seenN=+out.n;receive(out)}
   }
@@ -181,7 +187,7 @@ function sendAcross(b){
 }
 
 function newGame(g,mine){
-  S.game=g;S.lost=0;S.themLost=0;S.outN=0;S.seenN=0;S.ball=null;S.served=0;
+  S.game=g;S.lost=0;S.themLost=0;S.mult=1;S.themMult=1;S.cookies=[];S.outN=0;S.seenN=0;S.ball=null;S.served=0;
   $('endOv').hidden=true;paintHud();
   if(mine)pub();
   pub();
@@ -194,15 +200,15 @@ function serve(){
   S.trail=[];blip(520,.08,'triangle');
 }
 function gameOver(){return S.lost>=WIN||S.themLost>=WIN}
-function onPoint(mine){
+function onPoint(mine,v){
   paintHud();
-  if(mine){buzz([20,40,20]);blip(880,.12);blip(1320,.18);flash('\u3044\u3044\u306d! +1',1200)}
+  if(mine){buzz([20,40,20]);blip(880,.12);blip(1320,.18);flash('\u3044\u3044\u306d! +'+(v||1),1200)}
   if(gameOver())return endGame();
 }
 function miss(){
   S.ball=null;
-  if(S.mode==='solo'){S.lost=0;flash('\u304a\u3063\u3068! again',1000);S.serveAt=performance.now()+900;return}
-  S.lost++;pub();buzz(120);blip(220,.25,'sawtooth',.08);paintHud();
+  if(S.mode==='solo'){S.lost=0;S.mult=1;flash('\u304a\u3063\u3068! again',1000);S.serveAt=performance.now()+900;return}
+  S.lost+=S.themMult;pub();buzz(120);blip(220,.25,'sawtooth',.08);paintHud();
   if(gameOver())return endGame();
   flash('\u304a\u3063\u3068\u2026 your serve',1100);S.serveAt=performance.now()+1300;
 }
@@ -230,7 +236,7 @@ function step(now){
       const off=(b.x-S.paddleX)/(PW/2), sp=Math.min(2.3,Math.hypot(b.vx,b.vy)*1.06), a=off*1.0;
       b.vx=Math.sin(a)*sp;b.vy=-Math.cos(a)*sp;b.y=py-BR;
       buzz(15);blip(600+Math.random()*200,.07);squish=1;
-      if(S.mode==='solo'){S.lost++;}
+      if(S.mode==='solo'){S.lost+=S.mult;}
     }
     if(b.y<-BR*2&&b.vy<0){
       if(S.mode==='solo'){b.y=-BR*2;b.vy=Math.abs(b.vy)}
@@ -239,6 +245,16 @@ function step(now){
     if(S.ball&&b.y>H+BR)miss();
     if(S.ball){S.trail.push({x:b.x,y:b.y});if(S.trail.length>10)S.trail.shift()}
   }
+  // cat cookies: drift down your half, catch with the paddle for a multiplier
+  const playing=(S.mode==='solo'||(S.mode==='online'&&S.otherPeer))&&!gameOver()&&$('endOv').hidden;
+  if(playing&&!S.nextCookie)S.nextCookie=now+4000+Math.random()*4000;
+  if(playing&&now>S.nextCookie&&S.cookies.length<1){S.cookies.push({x:.15+Math.random()*.7,y:-.06,vy:.2+Math.random()*.08,w:Math.random()*6});S.nextCookie=now+6000+Math.random()*6000}
+  for(const k of S.cookies){k.y+=k.vy*dt;k.x+=Math.sin(now/600+k.w)*.04*dt;
+    const py=PY();
+    if(!k.got&&k.y+CR>=py&&k.y-CR<=py+.06&&Math.abs(k.x-S.paddleX)<=PW/2+CR*.6){k.got=1;S.mult=Math.min(5,S.mult+1);pub();paintHud();
+      buzz([10,30,10]);blip(988,.08,'square',.08);setTimeout(()=>blip(1319,.12,'square',.08),90);flash('\u306b\u3083! \u00d7'+S.mult,1100)}}
+  S.cookies=S.cookies.filter(k=>!k.got&&k.y<H+.1);
+  if(!playing)S.cookies=[];
   draw(now);requestAnimationFrame(step);
 }
 
@@ -271,6 +287,7 @@ function draw(now){
     ctx.fillStyle='rgba(255,143,177,.7)';ctx.beginPath();ctx.ellipse(x-r*.55,y+r*.25,r*.18,r*.11,0,0,7);ctx.ellipse(x+r*.55,y+r*.25,r*.18,r*.11,0,0,7);ctx.fill();
     ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y+r*.12,r*.16,.2,Math.PI-.2);ctx.stroke();
   }
+  for(const k of S.cookies)drawCookie(k.x*u,k.y*u,CR*u,Math.sin(now/500+k.w)*.25);
   // paddle: chubby pill with a face
   squish*=.85;
   const px=S.paddleX*u,py=PY()*u,pw=PW*u*(1+squish*.08),ph=.055*u*(1-squish*.25);
@@ -282,15 +299,33 @@ function draw(now){
   // message
   if(now<S.msgUntil&&S.msg){ctx.font=`${Math.round(.07*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';ctx.fillStyle='#5b3a4a';ctx.globalAlpha=Math.min(1,(S.msgUntil-now)/300);ctx.fillText(S.msg,.5*u,H*.45*u);ctx.globalAlpha=1}
   // solo rally counter
-  if(S.mode==='solo'){ctx.font=`${Math.round(.05*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';ctx.fillStyle='rgba(91,58,74,.5)';ctx.fillText(`rally ${S.lost}`,.5*u,(H-.06)*u)}
+  if(S.mode==='solo'){ctx.font=`${Math.round(.05*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';ctx.fillStyle='rgba(91,58,74,.5)';ctx.fillText(`rally ${S.lost}`+(S.mult>1?`  \u00d7${S.mult}`:''),.5*u,(H-.06)*u)}
 }
 
+function drawCookie(x,y,r,rot){
+  ctx.save();ctx.translate(x,y);ctx.rotate(rot);
+  ctx.fillStyle='rgba(91,58,74,.12)';ctx.beginPath();ctx.ellipse(3,6,r,r*.8,0,0,7);ctx.fill();
+  ctx.fillStyle='#e9b87c';ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2.5;ctx.lineJoin='round';
+  ctx.beginPath();ctx.moveTo(-r*.85,-r*.35);ctx.lineTo(-r*.7,-r*1.15);ctx.lineTo(-r*.2,-r*.85);ctx.lineTo(r*.2,-r*.85);ctx.lineTo(r*.7,-r*1.15);ctx.lineTo(r*.85,-r*.35);
+  ctx.arc(0,0,r*.92,-.38,Math.PI+.38);ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.fillStyle='#ffb3c7';ctx.beginPath();ctx.moveTo(-r*.62,-r*.5);ctx.lineTo(-r*.6,-r*.9);ctx.lineTo(-r*.32,-r*.72);ctx.fill();ctx.beginPath();ctx.moveTo(r*.62,-r*.5);ctx.lineTo(r*.6,-r*.9);ctx.lineTo(r*.32,-r*.72);ctx.fill();
+  ctx.fillStyle='#6b3e2a';ctx.beginPath();ctx.arc(-r*.32,-r*.05,r*.12,0,7);ctx.arc(r*.32,-r*.05,r*.12,0,7);ctx.fill();
+  ctx.fillStyle='#ff8fb1';ctx.beginPath();ctx.arc(0,r*.18,r*.08,0,7);ctx.fill();
+  ctx.strokeStyle='#5b3a4a';ctx.lineWidth=1.5;ctx.beginPath();
+  for(const s of[-1,1]){ctx.moveTo(s*r*.35,r*.25);ctx.lineTo(s*r*.8,r*.18);ctx.moveTo(s*r*.35,r*.35);ctx.lineTo(s*r*.8,r*.4)}
+  ctx.stroke();ctx.restore();
+}
 function paintHud(){
-  $('sMe').textContent=S.themLost;$('sThem').textContent=S.lost;
+  $('sMe').textContent=S.themLost;$('sThem').textContent=S.lost;$('mMe').textContent=S.mult>1?'\u00d7'+S.mult:'';$('mThem').textContent=S.themMult>1?'\u00d7'+S.themMult:'';
   $('meDot').style.background=myColor();$('themDot').style.background=theirColor();
   $('hud').hidden=S.mode!=='online';
 }
 
+function drawQR(code){
+  const box=$('qr');box.textContent='';
+  try{const q=qrcode(0,'M');q.addData(location.origin+location.pathname+'#'+code);q.make();box.innerHTML=q.createSvgTag({cellSize:6,margin:0,scalable:true})}
+  catch(e){box.hidden=true}
+}
 /* ---------- buttons ---------- */
 function newCode(){const a='ABCDEFGHJKMNPQRSTUVWXYZ';return Array.from({length:4},()=>a[Math.floor(Math.random()*a.length)]).join('')}
 $('btnCreate').onclick=()=>{audio();enter(newCode(),'a')};
@@ -304,6 +339,8 @@ $('btnRematch').onclick=()=>{audio();newGame(Math.max(S.game,S.otherGame)+1,true
 
 // keep the screen awake while playing
 (async()=>{try{await navigator.wakeLock?.request('screen')}catch(e){}})();
+const hc=(location.hash||'').slice(1).toUpperCase();
+if(/^[A-Z]{4}$/.test(hc)){$('codeIn').value=hc;try{history.replaceState(null,'',location.pathname)}catch(e){}addEventListener('load',()=>enter(hc,'b'))}
 requestAnimationFrame(step);
 })();
 </script>
