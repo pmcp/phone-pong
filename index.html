@@ -108,11 +108,24 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const S={mode:'lobby',role:'a',room:null,code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
-  mult:1,themMult:1,cookies:[],bigUntil:0,smallUntil:0,zapN:0,zapK:'',seenZap:0,nextCookie:0,ball:null,paddleX:.5,targetX:.5,serveAt:0,msg:'',msgUntil:0,trail:[]};
+const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
+  mult:1,themMult:1,cookies:[],fx:{},banana:null,zapN:0,zapK:'',seenZap:0,nextCookie:0,ball:null,paddleX:.5,targetX:.5,serveAt:0,msg:'',msgUntil:0,trail:[]};
+const hitSpeed=()=>1.0*(1+.2*(S.mult-1));   // your multiplier makes your shots faster
 const PW=.3, PY=()=>H-.2, BR=.04, CR=.05;
-const ballR=b=>BR*Math.max(.55,1-(b.r||0)*.035);
-const padW=now=>PW*(now<S.bigUntil?1.6:1)*(now<S.smallUntil?.55:1);
+// power-ups: self = helps you; the rest are thrown across the net at your partner
+const FX={
+  big:    {dur:10000,self:1,label:'BIG',     take:'\u3067\u304b\u3044! big paddle'},
+  bigball:{dur:10000,self:1,label:'BIG BALL',take:'\u3067\u3063\u304b\u3044! big ball'},
+  mini:   {dur:8000, label:'TINY',  take:'\u3048\u3044\u3063! tiny paddle for them',   got:'\u3061\u3073\u2026 tiny paddle!'},
+  round:  {dur:8000, label:'ROUND', take:'\u307e\u308b! round paddle for them',     got:'\u307e\u308b\u2026 round paddle!'},
+  drunk:  {dur:8000, label:'DRUNK', take:'\u304b\u3093\u3071\u3044! drunk ball for them',   got:'\u3075\u3089\u3075\u3089\u2026 drunk ball!'},
+  reverse:{dur:7000, label:'SWAP',  take:'\u3078\u3078! swapped controls for them', got:'\u3042\u308c? controls swapped!'},
+  banana: {dur:12000,label:'BANANA',take:'\u307d\u3044\u3063! banana thrown',           got:'\u30d0\u30ca\u30ca! watch out'},
+};
+const on=(k,now)=>now<(S.fx[k]||0);
+const ballR=(b,now)=>BR*Math.max(.55,1-(b.r||0)*.035)*(on('bigball',now)?1.8:1);  // shrinks as the rally goes on
+const padW=now=>PW*(on('big',now)?1.6:1)*(on('mini',now)?.55:1);
+const roundR=now=>.075*(on('big',now)?1.4:1)*(on('mini',now)?.6:1);
 const myColor=()=>S.role==='a'?PINK:MINT, theirColor=()=>S.role==='a'?MINT:PINK;
 
 /* ---------- input ---------- */
@@ -129,7 +142,7 @@ function enter(code,role){
   showErr('');
   if(!window.Peer){showErr('Could not load the connection library. Check your internet and reload.');return}
   try{peer&&peer.destroy()}catch(e){}
-  S.code=code;S.role=role;S.game=1;S.lost=0;S.themLost=0;S.mult=1;S.themMult=1;S.cookies=[];S.bigUntil=0;S.smallUntil=0;S.zapN=0;S.seenZap=0;S.outN=0;S.seenN=0;S.served=0;S.ball=null;S.otherPeer=null;
+  S.code=code;S.role=role;S.game=1;S.lost=0;S.themLost=0;S.mult=1;S.themMult=1;S.cookies=[];S.fx={};S.banana=null;S.zapN=0;S.seenZap=0;S.outN=0;S.seenN=0;S.served=0;S.ball=null;S.otherPeer=null;
   const id='phonepong-'+code.toLowerCase();
   peer=role==='a'?new Peer(id):new Peer();
   peer.on('open',()=>{
@@ -165,13 +178,20 @@ function onOther(pr){
     const tl=+pr.lost||0;
     if(tl>S.themLost){const v=tl-S.themLost;S.themLost=tl;S.mult=1;pub();onPoint(true,v)}
     const z=pr.zap||{};
-    if(+z.n>S.seenZap){S.seenZap=+z.n;if(z.k==='mini'){S.smallUntil=performance.now()+9000;buzz([40,30,40]);blip(300,.2,'triangle');flash('\u3061\u3073\u2026 tiny paddle!',1400)}}
+    if(+z.n>S.seenZap){S.seenZap=+z.n;getZap(z.k)}
     const out=pr.out||{};
     if(+out.n>S.seenN){S.seenN=+out.n;receive(out)}
   }
   maybeFirstServe();
 }
 
+function getZap(k){
+  const f=FX[k];if(!f||f.self)return;
+  const now=performance.now();
+  if(k==='banana')S.banana={x:.2+Math.random()*.6,y:H*(.3+Math.random()*.25),until:now+f.dur};
+  else S.fx[k]=now+f.dur;
+  buzz([40,30,40]);blip(300,.2,'triangle');flash(f.got,1500);
+}
 function maybeFirstServe(){
   if(S.role==='a'&&S.otherPeer&&S.otherGame===S.game&&S.served!==S.game&&!S.ball&&!gameOver()){
     S.served=S.game;S.serveAt=performance.now()+2200;flash('3 \u00b7 2 \u00b7 1 \u2026',2000)
@@ -181,7 +201,7 @@ function maybeFirstServe(){
 function receive(o){
   // their top edge is our top edge; mirror x because the phones face each other
   const x=Math.min(1-BR,Math.max(BR,1-(+o.x||.5)));
-  S.ball={x,y:-BR,vx:-(+o.vx||0),vy:Math.abs(+o.vy||1),r:Math.min(30,+o.r||0)};
+  S.ball={x,y:-BR,vx:Math.max(-2.6,Math.min(2.6,-(+o.vx||0))),vy:Math.min(2.8,Math.abs(+o.vy||1)),r:Math.min(30,+o.r||0)};
   S.trail=[];
 }
 
@@ -191,7 +211,7 @@ function sendAcross(b){
 }
 
 function newGame(g,mine){
-  S.game=g;S.lost=0;S.themLost=0;S.mult=1;S.themMult=1;S.cookies=[];S.bigUntil=0;S.smallUntil=0;S.zapN=0;S.seenZap=0;S.outN=0;S.seenN=0;S.ball=null;S.served=0;
+  S.game=g;S.lost=0;S.themLost=0;S.mult=1;S.themMult=1;S.cookies=[];S.fx={};S.banana=null;S.zapN=0;S.seenZap=0;S.outN=0;S.seenN=0;S.ball=null;S.served=0;
   $('endOv').hidden=true;paintHud();
   if(mine)pub();
   pub();
@@ -199,7 +219,7 @@ function newGame(g,mine){
 
 /* ---------- gameplay ---------- */
 function serve(){
-  const sp=.95, a=(Math.random()-.5)*.8;
+  const sp=hitSpeed(), a=(Math.random()-.5)*.8;
   S.ball={x:S.paddleX,y:PY()-BR-.02,vx:Math.sin(a)*sp,vy:-Math.cos(a)*sp,r:0};
   S.trail=[];blip(520,.08,'triangle');
 }
@@ -226,23 +246,44 @@ function endGame(){
 function flash(t,ms){S.msg=t;S.msgUntil=performance.now()+ms}
 
 let last=performance.now();
+function hitPaddle(b){
+  b.r=(b.r||0)+1;
+  buzz(15);blip(600+Math.random()*200,.07);squish=1;
+  if(S.mode==='solo')S.lost+=S.mult;
+}
 function step(now){
   const dt=Math.min(.033,(now-last)/1000);last=now;
-  S.paddleX+=(Math.min(1-padW(now)/2,Math.max(padW(now)/2,S.targetX))-S.paddleX)*Math.min(1,dt*22);
+  const isRound=on('round',now), half=isRound?roundR(now):padW(now)/2;
+  const tx=on('reverse',now)?1-S.targetX:S.targetX;
+  S.paddleX+=(Math.min(1-half,Math.max(half,tx))-S.paddleX)*Math.min(1,dt*22);
   if(S.serveAt&&now>=S.serveAt&&!S.ball&&(S.mode==='solo'||S.otherPeer)){S.serveAt=0;serve()}
   const b=S.ball;
   if(b){
+    if(on('drunk',now)){b.vx+=Math.cos(now/140)*2.6*dt;b.vx=Math.max(-2.4,Math.min(2.4,b.vx))}
     b.x+=b.vx*dt;b.y+=b.vy*dt;
-    const rb=ballR(b), pw=padW(now);
+    const rb=ballR(b,now), pw=padW(now), py=PY();
     if(b.x<rb){b.x=rb;b.vx=Math.abs(b.vx);blip(400,.04)}
     if(b.x>1-rb){b.x=1-rb;b.vx=-Math.abs(b.vx);blip(400,.04)}
-    const py=PY();
-    if(b.vy>0&&b.y+rb>=py&&b.y-rb<=py+.05&&Math.abs(b.x-S.paddleX)<=pw/2+rb){
-      const off=Math.max(-1,Math.min(1,(b.x-S.paddleX)/(pw/2))), sp=Math.min(2.8,Math.hypot(b.vx,b.vy)*1.07), a=off*1.0;
-      b.vx=Math.sin(a)*sp;b.vy=-Math.cos(a)*sp;b.y=py-rb;b.r=(b.r||0)+1;
-      if(b.r===8)flash('\u306f\u3084\u3044! faster',900);
-      buzz(15);blip(600+Math.random()*200,.07);squish=1;
-      if(S.mode==='solo'){S.lost+=S.mult;}
+    // banana peel: the ball slips and shoots off in a new direction
+    const bn=S.banana;
+    if(bn&&now<bn.until&&Math.hypot(b.x-bn.x,b.y-bn.y)<rb+.045){
+      const sp=Math.hypot(b.vx,b.vy),a=(Math.random()-.5)*2.2,dn=b.vy>0?1:-1;
+      b.vx=Math.sin(a)*sp;b.vy=dn*Math.cos(a)*sp;S.banana=null;
+      buzz([20,20,20]);blip(180,.18,'sawtooth',.1);flash('\u3064\u308b\u3063!',900);
+    }
+    if(isRound){
+      const R=roundR(now),cx=S.paddleX,cy=py+.03,dx=b.x-cx,dy=b.y-cy,d=Math.hypot(dx,dy)||1;
+      if(d<R+rb&&b.vx*dx+b.vy*dy<0){
+        const nx=dx/d,ny=dy/d,dot=b.vx*nx+b.vy*ny;
+        let vx=b.vx-2*dot*nx,vy=b.vy-2*dot*ny;
+        const sp=hitSpeed();
+        if(vy>-.3*sp)vy=-.3*sp;
+        vx=Math.sign(vx||1)*Math.sqrt(Math.max(0,sp*sp-vy*vy));
+        b.vx=vx;b.vy=vy;b.x=cx+nx*(R+rb);b.y=cy+ny*(R+rb);hitPaddle(b);
+      }
+    }else if(b.vy>0&&b.y+rb>=py&&b.y-rb<=py+.05&&Math.abs(b.x-S.paddleX)<=pw/2+rb){
+      const off=Math.max(-1,Math.min(1,(b.x-S.paddleX)/(pw/2))), sp=hitSpeed(), a=off*1.0;
+      b.vx=Math.sin(a)*sp;b.vy=-Math.cos(a)*sp;b.y=py-rb;hitPaddle(b);
     }
     if(b.y<-BR*2&&b.vy<0){
       if(S.mode==='solo'){b.y=-BR*2;b.vy=Math.abs(b.vy)}
@@ -251,17 +292,23 @@ function step(now){
     if(S.ball&&b.y>H+BR)miss();
     if(S.ball){S.trail.push({x:b.x,y:b.y});if(S.trail.length>10)S.trail.shift()}
   }
-  // cat cookies: drift down your half, catch with the paddle for a multiplier
+  if(S.banana&&now>=S.banana.until)S.banana=null;
+  // falling items: catch them with your paddle
   const playing=(S.mode==='solo'||(S.mode==='online'&&S.otherPeer))&&!gameOver()&&$('endOv').hidden;
   if(playing&&!S.nextCookie)S.nextCookie=now+4000+Math.random()*4000;
-  if(playing&&now>S.nextCookie&&S.cookies.length<1){const q=Math.random(),t=q<.5?'cookie':(q<.75||S.mode==='solo')?'big':'mini';S.cookies.push({t,x:.15+Math.random()*.7,y:-.06,vy:.2+Math.random()*.08,w:Math.random()*6});S.nextCookie=now+6000+Math.random()*6000}
+  if(playing&&now>S.nextCookie&&S.cookies.length<1){
+    const pool=S.mode==='solo'?['cookie','cookie','big','bigball']:['cookie','cookie','cookie','big','bigball','mini','round','drunk','reverse','banana'];
+    const t=pool[Math.floor(Math.random()*pool.length)];
+    S.cookies.push({t,x:.15+Math.random()*.7,y:-.06,vy:.2+Math.random()*.08,w:Math.random()*6});S.nextCookie=now+5500+Math.random()*5500}
   for(const k of S.cookies){k.y+=k.vy*dt;k.x+=Math.sin(now/600+k.w)*.04*dt;
-    const py=PY();
-    if(!k.got&&k.y+CR>=py&&k.y-CR<=py+.06&&Math.abs(k.x-S.paddleX)<=padW(now)/2+CR*.6){k.got=1;
+    const py=PY(),reach=isRound?roundR(now):padW(now)/2;
+    if(!k.got&&k.y+CR>=py-(isRound?roundR(now):0)&&k.y-CR<=py+.06&&Math.abs(k.x-S.paddleX)<=reach+CR*.6){k.got=1;
       buzz([10,30,10]);blip(988,.08,'square',.08);setTimeout(()=>blip(1319,.12,'square',.08),90);
       if(k.t==='cookie'){S.mult=Math.min(5,S.mult+1);pub();paintHud();flash('\u306b\u3083! \u00d7'+S.mult,1100)}
-      else if(k.t==='big'){S.bigUntil=now+10000;S.smallUntil=0;flash('\u3067\u304b\u3044! big paddle',1200)}
-      else{S.zapN++;S.zapK='mini';pub();flash('\u3048\u3044\u3063! tiny paddle for them',1400)}}}
+      else{const f=FX[k.t];
+        if(f.self){S.fx[k.t]=now+f.dur;if(k.t==='big')S.fx.mini=0}
+        else{S.zapN++;S.zapK=k.t;pub()}
+        flash(f.take,1300)}}}
   S.cookies=S.cookies.filter(k=>!k.got&&k.y<H+.1);
   if(!playing)S.cookies=[];
   draw(now);requestAnimationFrame(step);
@@ -285,28 +332,48 @@ function draw(now){
   // side lines
   ctx.strokeStyle='#f6c4d4';ctx.lineWidth=3;ctx.setLineDash([2,10]);ctx.lineCap='round';
   ctx.beginPath();ctx.moveTo(.5*u,20);ctx.lineTo(.5*u,(PY()-.25)*u);ctx.stroke();ctx.setLineDash([]);
-  // trail
-  S.trail.forEach((t,i)=>{ctx.fillStyle=`rgba(255,143,177,${i/S.trail.length*.25})`;ctx.beginPath();ctx.arc(t.x*u,t.y*u,BR*u*(.4+i/S.trail.length*.5),0,7);ctx.fill()});
-  // ball: a little mochi
   const b=S.ball;
-  if(b){const x=b.x*u,y=b.y*u,r=ballR(b)*u;
+  // trail
+  S.trail.forEach((t,i)=>{ctx.fillStyle=`rgba(255,143,177,${i/S.trail.length*.25})`;ctx.beginPath();ctx.arc(t.x*u,t.y*u,(b?ballR(b,now):BR)*u*(.4+i/S.trail.length*.5),0,7);ctx.fill()});
+  // ball: a little mochi
+  if(b){const x=b.x*u,y=b.y*u,r=ballR(b,now)*u,drunk=on('drunk',now);
     ctx.fillStyle='rgba(91,58,74,.12)';ctx.beginPath();ctx.ellipse(x+3,y+5,r,r*.8,0,0,7);ctx.fill();
     ctx.fillStyle='#fff';ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();ctx.stroke();
-    ctx.fillStyle='#5b3a4a';ctx.beginPath();ctx.arc(x-r*.35,y-r*.05,r*.11,0,7);ctx.arc(x+r*.35,y-r*.05,r*.11,0,7);ctx.fill();
+    if(drunk){ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.beginPath();for(const s of[-1,1]){ctx.moveTo(x+s*r*.5,y-r*.2);ctx.lineTo(x+s*r*.25,y-r*.05);ctx.lineTo(x+s*r*.5,y+r*.1)}ctx.stroke()}
+    else{ctx.fillStyle='#5b3a4a';ctx.beginPath();ctx.arc(x-r*.35,y-r*.05,r*.11,0,7);ctx.arc(x+r*.35,y-r*.05,r*.11,0,7);ctx.fill();}
     ctx.fillStyle='rgba(255,143,177,.7)';ctx.beginPath();ctx.ellipse(x-r*.55,y+r*.25,r*.18,r*.11,0,0,7);ctx.ellipse(x+r*.55,y+r*.25,r*.18,r*.11,0,0,7);ctx.fill();
     ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y+r*.12,r*.16,.2,Math.PI-.2);ctx.stroke();
   }
+  if(S.banana)drawBanana(S.banana.x*u,S.banana.y*u,.045*u,Math.sin(now/400)*.15);
   for(const k of S.cookies)drawItem(k,now,u);
-  // paddle: chubby pill with a face
+  // paddle: chubby pill with a face (or a ball, when someone made it round)
   squish*=.85;
-  const px=S.paddleX*u,py=PY()*u,pw=padW(now)*u*(1+squish*.08),ph=.055*u*(1-squish*.25);
-  ctx.fillStyle='rgba(91,58,74,.12)';ctx.beginPath();ctx.roundRect(px-pw/2+3,py+5,pw,ph,ph/2);ctx.fill();
-  ctx.fillStyle=myColor();ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2.5;ctx.beginPath();ctx.roundRect(px-pw/2,py,pw,ph,ph/2);ctx.fill();ctx.stroke();
-  ctx.fillStyle='#5b3a4a';ctx.beginPath();ctx.arc(px-ph*.55,py+ph*.45,ph*.1,0,7);ctx.arc(px+ph*.55,py+ph*.45,ph*.1,0,7);ctx.fill();
-  ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(px,py+ph*.5,ph*.13,.2,Math.PI-.2);ctx.stroke();
-  ctx.fillStyle='rgba(255,255,255,.55)';ctx.beginPath();ctx.ellipse(px-pw*.3,py+ph*.3,pw*.08,ph*.13,0,0,7);ctx.fill();
-  const left=Math.max(S.bigUntil,S.smallUntil)-now;
-  if(left>0){ctx.font=`${Math.round(.04*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';ctx.fillStyle='rgba(91,58,74,.55)';ctx.fillText((now<S.smallUntil?'\u3061\u3073 ':'\u3067\u304b\u3044 ')+Math.ceil(left/1000),px,py-.03*u)}
+  const px=S.paddleX*u,py=PY()*u;
+  if(on('round',now)){
+    const R=roundR(now)*u*(1+squish*.06),cy=py+.03*u;
+    ctx.fillStyle='rgba(91,58,74,.12)';ctx.beginPath();ctx.arc(px+3,cy+5,R,0,7);ctx.fill();
+    ctx.fillStyle=myColor();ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(px,cy,R,0,7);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#5b3a4a';ctx.beginPath();ctx.arc(px-R*.3,cy-R*.1,R*.08,0,7);ctx.arc(px+R*.3,cy-R*.1,R*.08,0,7);ctx.fill();
+    ctx.lineWidth=2;ctx.beginPath();ctx.arc(px,cy+R*.05,R*.12,0,7);ctx.stroke();
+  }else{
+    const pw=padW(now)*u*(1+squish*.08),ph=.055*u*(1-squish*.25);
+    ctx.fillStyle='rgba(91,58,74,.12)';ctx.beginPath();ctx.roundRect(px-pw/2+3,py+5,pw,ph,ph/2);ctx.fill();
+    ctx.fillStyle=myColor();ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2.5;ctx.beginPath();ctx.roundRect(px-pw/2,py,pw,ph,ph/2);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#5b3a4a';ctx.beginPath();ctx.arc(px-ph*.55,py+ph*.45,ph*.1,0,7);ctx.arc(px+ph*.55,py+ph*.45,ph*.1,0,7);ctx.fill();
+    ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(px,py+ph*.5,ph*.13,.2,Math.PI-.2);ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.55)';ctx.beginPath();ctx.ellipse(px-pw*.3,py+ph*.3,pw*.08,ph*.13,0,0,7);ctx.fill();
+  }
+  // countdowns for everything active on this phone
+  const timers=[];
+  for(const k in FX){const t=k==='banana'?(S.banana?S.banana.until-now:0):(S.fx[k]||0)-now;if(t>0)timers.push({txt:FX[k].label+' '+Math.ceil(t/1000),good:FX[k].self})}
+  if(timers.length){
+    ctx.font=`${Math.round(.036*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';
+    const gap=.015*u,ws=timers.map(t=>ctx.measureText(t.txt).width+.04*u),tot=ws.reduce((a,c)=>a+c,0)+gap*(ws.length-1);
+    let x0=Math.max(.02*u,Math.min(u*.98-tot,px-tot/2));const ty=py-.09*u,th=.06*u;
+    timers.forEach((t,i)=>{ctx.fillStyle=t.good?'#fff1b8':'#e8ddff';ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(x0,ty-th/2,ws[i],th,th/2);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#5b3a4a';ctx.fillText(t.txt,x0+ws[i]/2,ty+1);x0+=ws[i]+gap});
+    ctx.textBaseline='alphabetic';
+  }
   // message
   if(now<S.msgUntil&&S.msg){ctx.font=`${Math.round(.07*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';ctx.fillStyle='#5b3a4a';ctx.globalAlpha=Math.min(1,(S.msgUntil-now)/300);ctx.fillText(S.msg,.5*u,H*.45*u);ctx.globalAlpha=1}
   // solo rally counter
@@ -318,20 +385,34 @@ function drawItem(k,now,u){
   let label;
   if(k.t==='cookie'){drawCookie(x,y,r,rot);label='\u00d7'+Math.min(5,S.mult+1)}
   else{
-    const pulse=1+Math.sin(now/180)*.05,R=r*1.15*pulse,big=k.t==='big';
+    const f=FX[k.t],pulse=1+Math.sin(now/180)*.05,R=r*1.15*pulse;
     ctx.fillStyle='rgba(91,58,74,.12)';ctx.beginPath();ctx.arc(x+3,y+5,R,0,7);ctx.fill();
-    ctx.fillStyle=big?'#fff6c9':'#e3f7f1';ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(x,y,R,0,7);ctx.fill();ctx.stroke();
-    // a mini paddle inside: wide with arrows out, or narrow with arrows in
-    const w=big?R*1.25:R*.45,h=R*.32;
-    ctx.fillStyle=big?myColor():theirColor();ctx.beginPath();ctx.roundRect(x-w/2,y-h/2,w,h,h/2);ctx.fill();ctx.stroke();
-    ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.lineCap='round';ctx.beginPath();
-    const s=big?1:-1, ax=big?w/2+R*.05:w/2+R*.42, tip=big?ax+R*.22:ax-R*.25;
-    for(const d of[-1,1]){ctx.moveTo(x+d*ax,y);ctx.lineTo(x+d*tip,y);ctx.moveTo(x+d*tip,y);ctx.lineTo(x+d*(tip-s*R*.12),y-R*.12);ctx.moveTo(x+d*tip,y);ctx.lineTo(x+d*(tip-s*R*.12),y+R*.12)}
-    ctx.stroke();
-    label=big?'BIG':'TINY \u2191';
+    ctx.fillStyle=f.self?'#fff1b8':'#e8ddff';ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(x,y,R,0,7);ctx.fill();ctx.stroke();
+    const col=f.self?myColor():theirColor(),h=R*.3;
+    ctx.lineWidth=2;ctx.lineCap='round';
+    const arrow=(x1,y1,x2,y2)=>{const a=Math.atan2(y2-y1,x2-x1),hl=R*.14;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.moveTo(x2,y2);ctx.lineTo(x2-hl*Math.cos(a-.6),y2-hl*Math.sin(a-.6));ctx.moveTo(x2,y2);ctx.lineTo(x2-hl*Math.cos(a+.6),y2-hl*Math.sin(a+.6));ctx.stroke()};
+    const pill=(w,cy)=>{ctx.fillStyle=col;ctx.beginPath();ctx.roundRect(x-w/2,cy-h/2,w,h,h/2);ctx.fill();ctx.stroke()};
+    if(k.t==='big'){pill(R*1.1,y);arrow(x+R*.6,y,x+R*.85,y);arrow(x-R*.6,y,x-R*.85,y)}
+    else if(k.t==='mini'){pill(R*.42,y);arrow(x+R*.85,y,x+R*.35,y);arrow(x-R*.85,y,x-R*.35,y)}
+    else if(k.t==='round'){ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,R*.42,0,7);ctx.fill();ctx.stroke()}
+    else if(k.t==='bigball'){ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x,y,R*.42,0,7);ctx.fill();ctx.stroke();arrow(x+R*.5,y-R*.5,x+R*.78,y-R*.78);arrow(x-R*.5,y+R*.5,x-R*.78,y+R*.78)}
+    else if(k.t==='drunk'){ctx.beginPath();for(let i=0;i<=12;i++){const px=x-R*.7+i*R*.1,py=y+R*.15+Math.sin(i*1.1)*R*.18;i?ctx.lineTo(px,py):ctx.moveTo(px,py)}ctx.stroke();
+      ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x+R*.5,y-R*.25,R*.2,0,7);ctx.fill();ctx.stroke()}
+    else if(k.t==='reverse'){pill(R*.8,y+R*.42);arrow(x-R*.45,y-R*.12,x+R*.45,y-R*.12);arrow(x+R*.45,y-R*.42,x-R*.45,y-R*.42)}
+    else if(k.t==='banana'){drawBanana(x,y,R*.55,0)}
+    label=f.self?f.label:f.label+' \u2191';
   }
   ctx.font=`${Math.round(.034*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';
-  ctx.lineWidth=4;ctx.strokeStyle='#fffdfb';ctx.strokeText(label,x,y+r*1.75);ctx.fillStyle='#5b3a4a';ctx.fillText(label,x,y+r*1.75);
+  ctx.lineWidth=4;ctx.strokeStyle='#fffdfb';ctx.strokeText(label,x,y+r*1.8);ctx.fillStyle='#5b3a4a';ctx.fillText(label,x,y+r*1.8);
+}
+function drawBanana(x,y,r,rot){
+  ctx.save();ctx.translate(x,y);ctx.rotate(rot-.4);
+  ctx.fillStyle='rgba(91,58,74,.12)';ctx.beginPath();ctx.ellipse(3,5,r,r*.5,0,0,7);ctx.fill();
+  ctx.fillStyle='#ffd84a';ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2.5;ctx.lineJoin='round';
+  ctx.beginPath();ctx.arc(0,-r*.55,r*1.05,Math.PI*.18,Math.PI*.82);ctx.arc(0,-r*1.1,r*1.15,Math.PI*.78,Math.PI*.22,true);ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.fillStyle='#6b4a2a';ctx.beginPath();ctx.arc(r*.86,-r*.05,r*.1,0,7);ctx.arc(-r*.86,-r*.05,r*.1,0,7);ctx.fill();
+  ctx.fillStyle='#5b3a4a';ctx.beginPath();ctx.arc(-r*.2,r*.2,r*.07,0,7);ctx.arc(r*.2,r*.2,r*.07,0,7);ctx.fill();
+  ctx.restore();
 }
 function drawCookie(x,y,r,rot){
   ctx.save();ctx.translate(x,y);ctx.rotate(rot);
