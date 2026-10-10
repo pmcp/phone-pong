@@ -126,7 +126,7 @@ const FX={
   banana: {dur:12000,label:'BANANA',take:'\u307d\u3044\u3063! banana thrown',           got:'\u30d0\u30ca\u30ca! watch out'},
 };
 const on=(k,now)=>now<(S.fx[k]||0);
-const ballR=(b,now)=>BR*(on('bigball',now)?1.8:1)*(on('smallball',now)?.5:1);  // shrinks as the rally goes on
+const ballR=(b,now)=>BR*(on('bigball',now)?[1,1.8,2.6,3.3][S.bbl||1]:1)*(on('smallball',now)?.5:1);  // shrinks as the rally goes on
 const padW=now=>PW*(on('big',now)?1.6:1)*(on('mini',now)?.55:1);
 const roundR=now=>.075*(on('big',now)?1.4:1)*(on('mini',now)?.6:1);
 const myColor=()=>S.role==='a'?PINK:MINT, theirColor=()=>S.role==='a'?MINT:PINK;
@@ -310,9 +310,9 @@ function step(now){
       buzz([10,30,10]);blip(988,.08,'square',.08);setTimeout(()=>blip(1319,.12,'square',.08),90);
       if(k.t==='cookie'){S.mult=Math.min(5,S.mult+1);pub();paintHud();rescaleBall();flash('\u306b\u3083! \u00d7'+S.mult,1100)}
       else{const f=FX[k.t];
-        if(f.self){S.fx[k.t]=now+f.dur;if(k.t==='big')S.fx.mini=0}
+        if(f.self){if(k.t==='bigball')S.bbl=on('bigball',now)?Math.min(3,(S.bbl||1)+1):1;S.fx[k.t]=now+f.dur;if(k.t==='big')S.fx.mini=0}
         else{S.zapN++;S.zapK=k.t;pub()}
-        flash(f.take,1300)}}}
+        flash(f.take+(k.t==='bigball'&&S.bbl>1?' \u00d7'+S.bbl:''),1300)}}}
   S.cookies=S.cookies.filter(k=>!k.got&&now-k.born<12000);
   if(!playing)S.cookies=[];
   draw(now);requestAnimationFrame(step);
@@ -369,7 +369,7 @@ function draw(now){
   }
   // countdowns for everything active on this phone
   const timers=[];
-  for(const k in FX){const t=k==='banana'?(S.banana?S.banana.until-now:0):(S.fx[k]||0)-now;if(t>0)timers.push({txt:FX[k].label+' '+Math.ceil(t/1000),good:FX[k].self})}
+  for(const k in FX){const t=k==='banana'?(S.banana?S.banana.until-now:0):(S.fx[k]||0)-now;if(t>0)timers.push({txt:FX[k].label+(k==='bigball'&&S.bbl>1?' \u00d7'+S.bbl:'')+' '+Math.ceil(t/1000),good:FX[k].self})}
   if(timers.length){
     ctx.font=`${Math.round(.036*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';
     const gap=.015*u,ws=timers.map(t=>ctx.measureText(t.txt).width+.04*u),tot=ws.reduce((a,c)=>a+c,0)+gap*(ws.length-1);
