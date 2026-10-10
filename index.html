@@ -374,7 +374,8 @@ function step(now){
         if(f.self){if(k.t==='sticky')S.stk=on('sticky',now)?Math.min(2,(S.stk||1)+1):1;if(k.t==='bigball')S.bbl=on('bigball',now)?Math.min(3,(S.bbl||1)+1):1;S.fx[k.t]=now+f.dur;if(k.t==='big')S.fx.mini=0;pub()}
         else{S.zapN++;S.zapK=k.t;pub()}
         flash(f.take+(k.t==='bigball'&&S.bbl>1?' \u00d7'+S.bbl:'')+(k.t==='sticky'&&S.stk>1?' \u00d7'+S.stk+(S.stk>=2?' hold to stick!':''):''),1400)}}}
-  S.cookies=S.cookies.filter(k=>!k.got&&k.y<H+.1);
+  for(const k of S.cookies)if(!k.got&&k.y>=PY()-.02){k.got=1;burst(k.x,k.y,'#e9c9d6',9,'dot',.55);S.parts.push({x:k.x,y:k.y,vx:0,vy:0,g:0,life:.25,max:.25,col:'#e9c9d6',kind:'ring',sz:CR*.7});blip(330,.05,'sine',.05)}
+  S.cookies=S.cookies.filter(k=>!k.got);
   for(const p of S.parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=p.g*dt;p.vx*=Math.exp(-dt*2);p.life-=dt}
   S.parts=S.parts.filter(p=>p.life>0);
   S.shake*=Math.exp(-dt*9);if(S.shake<.01)S.shake=0;
@@ -449,25 +450,12 @@ function draw(now){
     ctx.stroke();ctx.restore();ctx.restore();
   }
   if(S.banana)drawBanana(S.banana.x*u,S.banana.y*u,.045*u,Math.sin(now/400)*.15);
-  for(const k of S.cookies){const sc=backOut((now-k.born)/380),x=k.x*u,y=k.y*u;ctx.save();ctx.translate(x,y);ctx.scale(sc,sc);ctx.translate(-x,-y);drawItem(k,now,u);ctx.restore()}
+  for(const k of S.cookies){const sc=backOut((now-k.born)/380),x=k.x*u,y=k.y*u;ctx.globalAlpha=clamp((PY()-k.y)/.3,0,1);ctx.save();ctx.translate(x,y);ctx.scale(sc,sc);ctx.translate(-x,-y);drawItem(k,now,u);ctx.restore();ctx.globalAlpha=1}
   drawParts(u);
-  // paddle: chubby pill with a face (or a ball, when someone made it round)
+  // paddle: shows every active status on itself
   squish*=.85;
   const px=S.paddleX*u,py=PY()*u;
-  if(on('round',now)){
-    const R=roundR(now)*u*(1+squish*.06),cy=py+.03*u;
-    ctx.fillStyle='rgba(91,58,74,.12)';ctx.beginPath();ctx.arc(px+3,cy+5,R,0,7);ctx.fill();
-    ctx.fillStyle=myColor();ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(px,cy,R,0,7);ctx.fill();ctx.stroke();
-    ctx.fillStyle='#5b3a4a';ctx.beginPath();ctx.arc(px-R*.3,cy-R*.1,R*.08,0,7);ctx.arc(px+R*.3,cy-R*.1,R*.08,0,7);ctx.fill();
-    ctx.lineWidth=2;ctx.beginPath();ctx.arc(px,cy+R*.05,R*.12,0,7);ctx.stroke();
-  }else{
-    const pw=padW(now)*u*(1+squish*.14),ph=.055*u*(1-squish*.35);
-    ctx.fillStyle='rgba(91,58,74,.12)';ctx.beginPath();ctx.roundRect(px-pw/2+3,py+5,pw,ph,ph/2);ctx.fill();
-    ctx.fillStyle=myColor();ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2.5;ctx.beginPath();ctx.roundRect(px-pw/2,py,pw,ph,ph/2);ctx.fill();ctx.stroke();
-    ctx.fillStyle='#5b3a4a';ctx.beginPath();ctx.arc(px-ph*.55,py+ph*.45,ph*.1,0,7);ctx.arc(px+ph*.55,py+ph*.45,ph*.1,0,7);ctx.fill();
-    ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(px,py+ph*.5,ph*.13,.2,Math.PI-.2);ctx.stroke();
-    ctx.fillStyle='rgba(255,255,255,.55)';ctx.beginPath();ctx.ellipse(px-pw*.3,py+ph*.3,pw*.08,ph*.13,0,0,7);ctx.fill();
-  }
+  drawPaddle(px,py,1,myStat(now),myColor(),now,u,squish);
   // countdowns for everything active on this phone
   const timers=[];
   for(const k in FX){const t=k==='banana'?(S.banana?S.banana.until-now:0):(S.fx[k]||0)-now;if(t>0)timers.push({txt:FX[k].label+(k==='bigball'&&S.bbl>1?' \u00d7'+S.bbl:'')+(k==='sticky'&&S.stk>1?' \u00d7'+S.stk:'')+' '+Math.ceil(t/1000),good:FX[k].self})}
@@ -492,21 +480,12 @@ function draw(now){
 // a little card in the corner showing her paddle as it is right now, plus her timers
 function drawThem(now,u){
   const ton=k=>now<(them.fx[k]||0);
-  const cw=.3*u,ch=.2*u,x0=u-cw-.03*u,y0=56;
+  const cw=.32*u,ch=.24*u,x0=u-cw-.03*u,y0=56,cx=x0+cw/2;
   ctx.save();
   ctx.fillStyle='rgba(255,253,251,.85)';ctx.strokeStyle='#f6c4d4';ctx.lineWidth=2.5;ctx.beginPath();ctx.roundRect(x0,y0,cw,ch,16);ctx.fill();ctx.stroke();
   ctx.font=`${Math.round(.03*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='left';ctx.fillStyle='rgba(91,58,74,.6)';ctx.fillText('them',x0+10,y0+.04*u);
-  // her paddle, at the same scale as the card
-  const cx=x0+cw/2,cy=y0+.085*u,col=theirColor();
-  ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.fillStyle=col;
-  if(ton('round')){const R=.075*(ton('big')?1.4:1)*(ton('mini')?.6:1)*u*.42;ctx.beginPath();ctx.arc(cx,cy,R,0,7);ctx.fill();ctx.stroke()}
-  else{const w=PW*(ton('big')?1.6:1)*(ton('mini')?.55:1)*u*.42,h=.055*u*.42;ctx.beginPath();ctx.roundRect(cx-w/2,cy-h/2,w,h,h/2);ctx.fill();ctx.stroke();
-    if(ton('sticky')){ctx.fillStyle='#c9a2ff';for(const d of[-.3,0,.3]){ctx.beginPath();ctx.ellipse(cx+d*w,cy+h*.75,2.5,4+(them.stk>1?3:0),0,0,7);ctx.fill()}}
-    if(ton('reverse')){ctx.strokeStyle='#5b3a4a';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(cx-9,cy-h);ctx.lineTo(cx+9,cy-h);ctx.moveTo(cx+9,cy-h);ctx.lineTo(cx+5,cy-h-3);ctx.stroke()}}
-  // her ball size, if changed
-  if(ton('bigball')||ton('smallball')){const br=BR*u*.42*(ton('bigball')?[1,1.8,2.6,3.3][them.bbl]:1)*(ton('smallball')?.5:1);
-    ctx.fillStyle='#fff';ctx.strokeStyle='#5b3a4a';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(cx+cw*.33,cy-.035*u,Math.max(2,br),0,7);ctx.fill();ctx.stroke()}
-  if(now<them.banana)drawBanana(x0+cw*.15,cy-.03*u,.016*u,0);
+  // her paddle, drawn exactly like yours, just small
+  drawPaddle(x0+cw/2,y0+.1*u,.45,themStat(now),theirColor(),now,u,0);
   // her timers
   const list=[];for(const k in FX){if(k==='banana')continue;const t=(them.fx[k]||0)-now;if(t>0)list.push({k,t})}
   if(now<them.banana)list.push({k:'banana',t:them.banana-now});
@@ -515,6 +494,56 @@ function drawThem(now,u){
   list.slice(0,2).forEach((e,i)=>{const f=FX[e.k];ctx.fillStyle=f.self?'#a8781a':'#7a52c7';
     ctx.fillText(f.label+(e.k==='sticky'&&them.stk>1?' \u00d72':'')+(e.k==='bigball'&&them.bbl>1?' \u00d7'+them.bbl:'')+' '+Math.ceil(e.t/1000),cx,y0+ch-.045*u+i*.03*u-(list.length>1?.015*u:0))});
   if(!list.length){ctx.fillStyle='rgba(91,58,74,.4)';ctx.fillText('normal',cx,y0+ch-.03*u)}
+  ctx.restore();
+}
+const myStat=now=>({on:k=>on(k,now),stk:S.stk||1,bbl:S.bbl||1,mult:S.mult,banana:!!S.banana});
+const themStat=now=>({on:k=>now<(them.fx[k]||0),stk:them.stk,bbl:them.bbl,mult:S.themMult,banana:now<them.banana});
+// cx = paddle centre, top = top edge of the paddle (px); sc scales everything (1 = your paddle)
+function drawPaddle(cx,top,sc,st,col,now,u,sq){
+  const ink='#5b3a4a',U=u*sc,drunk=st.on('drunk'),round=st.on('round');
+  const big=st.on('big'),mini=st.on('mini');
+  ctx.save();ctx.translate(cx,top);if(drunk)ctx.rotate(Math.sin(now/300)*.12);
+  // body geometry, relative to the paddle's top centre
+  let hw,t,b,fy,R=0;
+  if(round){R=.075*(big?1.4:1)*(mini?.6:1)*U*(1+sq*.06);fy=.03*U;hw=R;t=fy-R;b=fy+R}
+  else{const w=PW*(big?1.6:1)*(mini?.55:1)*U*(1+sq*.14),h=.055*U*(1-sq*.35);hw=w/2;t=0;b=h;fy=h*.5}
+  // drunk: bubbles drifting up
+  if(drunk)for(let i=0;i<6;i++){const ph=(now/1300+i/6)%1,bx=Math.sin(i*2.3+now/600)*hw*.8,by=t-ph*.13*U,br=(.006+.004*(i%3))*U*(.6+ph);
+    ctx.globalAlpha=1-ph;ctx.fillStyle='rgba(255,255,255,.8)';ctx.strokeStyle='#b07ad6';ctx.lineWidth=Math.max(1,1.5*sc*2);ctx.beginPath();ctx.arc(bx,by,br,0,7);ctx.fill();ctx.stroke()}
+  ctx.globalAlpha=1;
+  // cookies held: cat ears
+  if(st.mult>1){ctx.fillStyle=col;ctx.strokeStyle=ink;ctx.lineWidth=2*Math.max(.6,sc);
+    for(const d of[-1,1]){const ex=d*Math.min(hw*.55,.06*U);ctx.beginPath();ctx.moveTo(ex-.02*U,t+.01*U);ctx.lineTo(ex,t-.028*U);ctx.lineTo(ex+.02*U,t+.01*U);ctx.closePath();ctx.fill();ctx.stroke();
+      ctx.fillStyle='#ffd0dc';ctx.beginPath();ctx.moveTo(ex-.009*U,t+.004*U);ctx.lineTo(ex,t-.016*U);ctx.lineTo(ex+.009*U,t+.004*U);ctx.fill();ctx.fillStyle=col}}
+  // sticky: goo drips underneath
+  if(st.on('sticky')){const n=st.stk>1?5:3;ctx.fillStyle='#c9a2ff';ctx.strokeStyle=ink;ctx.lineWidth=1.5*Math.max(.6,sc);
+    for(let i=0;i<n;i++){const dx=(n===1?0:(i/(n-1)-.5))*hw*1.4,L=(.012+.008*Math.sin(now/380+i*1.7))*U*(st.stk>1?1.7:1),r=.007*U;
+      ctx.beginPath();ctx.moveTo(dx-r,b-r*.5);ctx.quadraticCurveTo(dx-r,b+L,dx,b+L+r);ctx.quadraticCurveTo(dx+r,b+L,dx+r,b-r*.5);ctx.closePath();ctx.fill();ctx.stroke()}}
+  // body
+  ctx.fillStyle='rgba(91,58,74,.12)';ctx.beginPath();round?ctx.arc(3,fy+5,R,0,7):ctx.roundRect(-hw+3,5,hw*2,b,b/2);ctx.fill();
+  ctx.fillStyle=col;ctx.strokeStyle=ink;ctx.lineWidth=2.5*Math.max(.6,sc);ctx.beginPath();round?ctx.arc(0,fy,R,0,7):ctx.roundRect(-hw,0,hw*2,b,b/2);ctx.fill();ctx.stroke();
+  if(st.on('sticky')){ctx.fillStyle='rgba(201,162,255,.55)';ctx.beginPath();round?ctx.arc(0,fy+R*.35,R*.7,0,Math.PI):ctx.roundRect(-hw+2,b*.55,hw*2-4,b*.45-1,b/4);ctx.fill()}
+  ctx.fillStyle='rgba(255,255,255,.55)';ctx.beginPath();ctx.ellipse(-hw*.55,fy-(b-t)*.18,Math.max(2,hw*.16),Math.max(1.5,(b-t)*.13),0,0,7);ctx.fill();
+  // face
+  const fs=round?R*.55:(b-t)*.9,ex=round?R*.32:Math.min(hw*.45,fs*.65);
+  ctx.strokeStyle=ink;ctx.fillStyle=ink;ctx.lineWidth=Math.max(1,2*sc);
+  if(drunk){for(const d of[-1,1]){ctx.beginPath();for(let a=0;a<8;a+=.5){const rr=fs*.03*a;ctx.lineTo(d*ex+Math.cos(a)*rr,fy-fs*.05+Math.sin(a)*rr)}ctx.stroke()}}
+  else if(st.on('reverse')){for(const d of[-1,1]){ctx.beginPath();ctx.arc(d*ex-d*fs*.06,fy-fs*.05,fs*.1,0,7);ctx.fill()}}
+  else{for(const d of[-1,1]){ctx.beginPath();ctx.arc(d*ex,fy-fs*.05,fs*.1,0,7);ctx.fill()}}
+  ctx.beginPath();if(mini||st.on('round'))ctx.arc(0,fy+fs*.12,fs*.09,0,7);else ctx.arc(0,fy+fs*.05,fs*.13,.2,Math.PI-.2);ctx.stroke();
+  if(st.mult>1){ctx.fillStyle='rgba(255,143,177,.65)';for(const d of[-1,1]){ctx.beginPath();ctx.ellipse(d*(ex+fs*.22),fy+fs*.1,fs*.12,fs*.07,0,0,7);ctx.fill()}}
+  // swapped controls: arrows over the paddle
+  if(st.on('reverse')){const ay=t-.022*U,aw=.04*U,hl=.01*U;ctx.strokeStyle=ink;ctx.lineWidth=Math.max(1,2*sc);ctx.beginPath();
+    ctx.moveTo(-aw,ay-hl);ctx.lineTo(aw,ay-hl);ctx.lineTo(aw-hl,ay-hl*2);ctx.moveTo(aw,ay+hl);ctx.lineTo(-aw,ay+hl);ctx.lineTo(-aw+hl,ay+hl*2);ctx.stroke()}
+  // ball size changes: a little ball circling the paddle
+  if(st.on('bigball')||st.on('smallball')){const a=now/450,orx=hw+.035*U,ory=(b-t)*.5+.035*U,bx=Math.cos(a)*orx,by=fy+Math.sin(a)*ory;
+    const br=BR*U*.55*(st.on('bigball')?[1,1.8,2.6,3.3][st.bbl]:1)*(st.on('smallball')?.5:1);
+    ctx.fillStyle='#fff';ctx.strokeStyle=ink;ctx.lineWidth=Math.max(1,1.8*sc);ctx.beginPath();ctx.arc(bx,by,Math.max(2,br),0,7);ctx.fill();ctx.stroke()}
+  // banana on this half: a sticker on the paddle
+  if(st.banana)drawBanana(hw*.72,fy,.014*U,.3);
+  // cookie multiplier badge
+  if(st.mult>1){const bx=hw+.012*U,by=t-.004*U,rr=.018*U;ctx.fillStyle='#ffd86e';ctx.strokeStyle=ink;ctx.lineWidth=Math.max(1,1.8*sc);ctx.beginPath();ctx.arc(bx,by,rr,0,7);ctx.fill();ctx.stroke();
+    ctx.fillStyle=ink;ctx.font=`${Math.max(8,Math.round(.022*U))}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('\u00d7'+st.mult,bx,by+1);ctx.textBaseline='alphabetic'}
   ctx.restore();
 }
 function drawItem(k,now,u){
