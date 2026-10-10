@@ -110,7 +110,9 @@ function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 /* ---------- state ---------- */
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
   mult:1,themMult:1,cookies:[],fx:{},banana:null,zapN:0,zapK:'',seenZap:0,nextCookie:0,ball:null,paddleX:.5,targetX:.5,serveAt:0,msg:'',msgUntil:0,trail:[]};
-const hitSpeed=()=>1.0*(1+.2*(S.mult-1));   // your multiplier makes your shots faster
+// every multiplier on the table (yours and hers) speeds the ball up on both halves, until someone loses the ball
+const hitSpeed=()=>Math.min(2.7,1.0*(1+.45*((S.mult-1)+(S.themMult-1))));
+function rescaleBall(){const b=S.ball;if(!b)return;const sp=Math.hypot(b.vx,b.vy)||1,k=hitSpeed()/sp;b.vx*=k;b.vy*=k}
 const PW=.3, PY=()=>H-.2, BR=.04, CR=.05;
 // power-ups: self = helps you; the rest are thrown across the net at your partner
 const FX={
@@ -175,7 +177,7 @@ function onOther(pr){
   if(g>S.game){newGame(g,false)}
   S.otherGame=g;
   if(g===S.game){
-    S.themMult=Math.max(1,Math.min(9,+pr.mult||1));
+    const tm=Math.max(1,Math.min(9,+pr.mult||1));if(tm!==S.themMult){S.themMult=tm;paintHud();rescaleBall()}
     const tl=+pr.lost||0;
     if(tl>S.themLost){const v=tl-S.themLost;S.themLost=tl;S.mult=1;pub();onPoint(true,v)}
     const z=pr.zap||{};
@@ -202,7 +204,7 @@ function maybeFirstServe(){
 function receive(o){
   // their top edge is our top edge; mirror x because the phones face each other
   const x=Math.min(1-BR,Math.max(BR,1-(+o.x||.5)));
-  S.ball={x,y:-BR,vx:Math.max(-2.6,Math.min(2.6,-(+o.vx||0))),vy:Math.min(2.8,Math.abs(+o.vy||1)),r:Math.min(30,+o.r||0)};
+  S.ball={x,y:-BR,vx:Math.max(-2.6,Math.min(2.6,-(+o.vx||0))),vy:Math.min(2.8,Math.abs(+o.vy||1)),r:Math.min(30,+o.r||0)};rescaleBall();
   S.trail=[];
 }
 
@@ -233,7 +235,7 @@ function onPoint(mine,v){
 function miss(){
   S.ball=null;
   if(S.mode==='solo'){S.lost=0;S.mult=1;flash('\u304a\u3063\u3068! again',1000);S.serveAt=performance.now()+900;return}
-  S.lost+=S.themMult;pub();buzz(120);blip(220,.25,'sawtooth',.08);paintHud();
+  S.lost+=S.themMult;S.mult=1;pub();buzz(120);blip(220,.25,'sawtooth',.08);paintHud();
   if(gameOver())return endGame();
   flash('\u304a\u3063\u3068\u2026 your serve',1100);S.serveAt=performance.now()+1300;
 }
@@ -305,7 +307,7 @@ function step(now){
     const py=PY(),reach=isRound?roundR(now):padW(now)/2;
     if(!k.got&&k.y+CR>=py-(isRound?roundR(now):0)&&k.y-CR<=py+.06&&Math.abs(k.x-S.paddleX)<=reach+CR*.6){k.got=1;
       buzz([10,30,10]);blip(988,.08,'square',.08);setTimeout(()=>blip(1319,.12,'square',.08),90);
-      if(k.t==='cookie'){S.mult=Math.min(5,S.mult+1);pub();paintHud();flash('\u306b\u3083! \u00d7'+S.mult,1100)}
+      if(k.t==='cookie'){S.mult=Math.min(5,S.mult+1);pub();paintHud();rescaleBall();flash('\u306b\u3083! \u00d7'+S.mult,1100)}
       else{const f=FX[k.t];
         if(f.self){S.fx[k.t]=now+f.dur;if(k.t==='big')S.fx.mini=0}
         else{S.zapN++;S.zapK=k.t;pub()}
