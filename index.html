@@ -296,12 +296,7 @@ function draw(now){
     ctx.fillStyle='rgba(255,143,177,.7)';ctx.beginPath();ctx.ellipse(x-r*.55,y+r*.25,r*.18,r*.11,0,0,7);ctx.ellipse(x+r*.55,y+r*.25,r*.18,r*.11,0,0,7);ctx.fill();
     ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y+r*.12,r*.16,.2,Math.PI-.2);ctx.stroke();
   }
-  for(const k of S.cookies){const rot=Math.sin(now/500+k.w)*.25;
-    if(k.t==='cookie')drawCookie(k.x*u,k.y*u,CR*u,rot);
-    else{const x=k.x*u,y=k.y*u,r=CR*u*1.05,pulse=1+Math.sin(now/180)*.06;
-      ctx.fillStyle='rgba(91,58,74,.12)';ctx.beginPath();ctx.arc(x+3,y+5,r,0,7);ctx.fill();
-      ctx.fillStyle=k.t==='big'?'#fff6c9':'#e3f7f1';ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(x,y,r*pulse,0,7);ctx.fill();ctx.stroke();
-      ctx.font=`${Math.round(r*1.15)}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#5b3a4a';ctx.fillText(k.t==='big'?'\ud83c\udf61':'\ud83d\udc2d',x,y+r*.05);ctx.textBaseline='alphabetic'}}
+  for(const k of S.cookies)drawItem(k,now,u);
   // paddle: chubby pill with a face
   squish*=.85;
   const px=S.paddleX*u,py=PY()*u,pw=padW(now)*u*(1+squish*.08),ph=.055*u*(1-squish*.25);
@@ -318,6 +313,26 @@ function draw(now){
   if(S.mode==='solo'){ctx.font=`${Math.round(.05*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';ctx.fillStyle='rgba(91,58,74,.5)';ctx.fillText(`rally ${S.lost}`+(S.mult>1?`  \u00d7${S.mult}`:''),.5*u,(H-.06)*u)}
 }
 
+function drawItem(k,now,u){
+  const x=k.x*u,y=k.y*u,r=CR*u,rot=Math.sin(now/500+k.w)*.25;
+  let label;
+  if(k.t==='cookie'){drawCookie(x,y,r,rot);label='\u00d7'+Math.min(5,S.mult+1)}
+  else{
+    const pulse=1+Math.sin(now/180)*.05,R=r*1.15*pulse,big=k.t==='big';
+    ctx.fillStyle='rgba(91,58,74,.12)';ctx.beginPath();ctx.arc(x+3,y+5,R,0,7);ctx.fill();
+    ctx.fillStyle=big?'#fff6c9':'#e3f7f1';ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(x,y,R,0,7);ctx.fill();ctx.stroke();
+    // a mini paddle inside: wide with arrows out, or narrow with arrows in
+    const w=big?R*1.25:R*.45,h=R*.32;
+    ctx.fillStyle=big?myColor():theirColor();ctx.beginPath();ctx.roundRect(x-w/2,y-h/2,w,h,h/2);ctx.fill();ctx.stroke();
+    ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.lineCap='round';ctx.beginPath();
+    const s=big?1:-1, ax=big?w/2+R*.05:w/2+R*.42, tip=big?ax+R*.22:ax-R*.25;
+    for(const d of[-1,1]){ctx.moveTo(x+d*ax,y);ctx.lineTo(x+d*tip,y);ctx.moveTo(x+d*tip,y);ctx.lineTo(x+d*(tip-s*R*.12),y-R*.12);ctx.moveTo(x+d*tip,y);ctx.lineTo(x+d*(tip-s*R*.12),y+R*.12)}
+    ctx.stroke();
+    label=big?'BIG':'TINY \u2191';
+  }
+  ctx.font=`${Math.round(.034*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';
+  ctx.lineWidth=4;ctx.strokeStyle='#fffdfb';ctx.strokeText(label,x,y+r*1.75);ctx.fillStyle='#5b3a4a';ctx.fillText(label,x,y+r*1.75);
+}
 function drawCookie(x,y,r,rot){
   ctx.save();ctx.translate(x,y);ctx.rotate(rot);
   ctx.fillStyle='rgba(91,58,74,.12)';ctx.beginPath();ctx.ellipse(3,6,r,r*.8,0,0,7);ctx.fill();
