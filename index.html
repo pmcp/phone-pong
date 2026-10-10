@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#ffeef4">
+<title>Phone Pong</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=M+PLUS+Rounded+1c:wght@500;800&display=swap">
+<style>
+/* Layout: one full-bleed canvas = your half of the table; the far edge is the net, the ball crosses to the other phone. Single pastel look by choice. */
+:root{
+  --sky:#ffeef4; --sky2:#fff8e8; --ink:#5b3a4a; --pink:#ff8fb1; --mint:#7fd8c3; --butter:#ffd86e; --line:#f6c4d4; --card:#fffdfb;
+  --display:"Mochiy Pop One","M PLUS Rounded 1c","Hiragino Maru Gothic ProN",system-ui,sans-serif;
+  --body:"M PLUS Rounded 1c","Hiragino Maru Gothic ProN",system-ui,sans-serif;
+  color-scheme:light;
+}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--sky);color:var(--ink);font-family:var(--body);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#c{position:fixed;inset:0;width:100%;height:100%;touch-action:none;display:block}
+.hud{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);display:flex;justify-content:center;gap:10px;pointer-events:none;font-family:var(--display)}
+.chip{background:var(--card);border:3px solid var(--line);border-radius:999px;padding:4px 14px;font-size:20px;display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums;box-shadow:0 3px 0 var(--line)}
+.dot{width:12px;height:12px;border-radius:50%}
+.top{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 8px);text-align:center;font-family:var(--display);font-size:13px;letter-spacing:.08em;opacity:.55;pointer-events:none}
+.ov{position:fixed;inset:0;display:grid;place-items:center;padding:16px;background:rgba(255,238,244,.82);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.panel{width:min(340px,100%);background:var(--card);border:4px solid var(--line);border-radius:32px;padding:28px 22px 22px;text-align:center;box-shadow:0 8px 0 var(--line);display:grid;gap:14px}
+h1{font-family:var(--display);font-weight:400;font-size:40px;line-height:1;margin:0;color:var(--pink);text-shadow:3px 3px 0 var(--butter)}
+.jp{font-family:var(--display);font-size:15px;margin:-6px 0 0;color:var(--mint)}
+p{margin:0;font-size:15px;line-height:1.5}
+button{font:inherit;font-family:var(--display);font-size:18px;border:0;border-radius:999px;padding:14px 18px;cursor:pointer;color:#fff;background:var(--pink);box-shadow:0 5px 0 #e0688e;transition:transform .08s}
+button:active{transform:translateY(4px);box-shadow:0 1px 0 #e0688e}
+button.mint{background:var(--mint);box-shadow:0 5px 0 #4fb39c}
+button.ghost{background:transparent;color:var(--ink);box-shadow:none;font-size:14px;padding:6px;opacity:.7}
+button:focus-visible,input:focus-visible{outline:3px solid var(--butter);outline-offset:3px}
+.row{display:flex;gap:8px}
+.row>*{flex:1;min-width:0}
+input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing:.3em;text-transform:uppercase;border:3px solid var(--line);border-radius:18px;padding:8px 4px;color:var(--ink);background:var(--sky2);width:100%;box-sizing:border-box}
+.code{font-family:var(--display);font-size:52px;letter-spacing:.18em;color:var(--ink);background:var(--sky2);border:3px dashed var(--pink);border-radius:20px;padding:6px 0 2px}
+.small{font-size:13px;opacity:.75}
+.err{color:#d2416b;font-size:14px}
+.big{font-family:var(--display);font-size:56px;color:var(--pink);text-shadow:3px 3px 0 var(--butter);margin:0}
+@media (prefers-reduced-motion:reduce){button{transition:none}}
+</style>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+<div class="top" id="topHint" hidden>&#x2191; &#x30cd;&#x30c3;&#x30c8; &#xb7; the net &#x2191;</div>
+<div class="hud" id="hud" hidden>
+  <div class="chip"><span class="dot" id="meDot"></span><span id="sMe">0</span></div>
+  <div class="chip"><span class="dot" id="themDot"></span><span id="sThem">0</span></div>
+</div>
+
+<div class="ov" id="lobby">
+  <div class="panel">
+    <h1>Phone<br>Pong</h1>
+    <p class="jp">&#x3075;&#x305f;&#x308a;&#x3067;&#x30d4;&#x30f3;&#x30dd;&#x30f3; &#x2661;</p>
+    <p>Two phones, one table. Put them top to top and the ball flies from your screen onto theirs.</p>
+    <button id="btnCreate">Start a table</button>
+    <div class="row">
+      <input id="codeIn" maxlength="4" placeholder="CODE" autocomplete="off" aria-label="Table code">
+      <button class="mint" id="btnJoin">Join</button>
+    </div>
+    <p class="err" id="err" hidden></p>
+    <button class="ghost" id="btnSolo">Practice alone</button>
+  </div>
+</div>
+
+<div class="ov" id="waiting" hidden>
+  <div class="panel">
+    <p class="jp">&#x307e;&#x3063;&#x3066;&#x306d;&#x2026;</p>
+    <p>Tell your partner this code:</p>
+    <div class="code" id="codeOut">----</div>
+    <p class="small">They open this same page, tap Join and type it in. Then lay the phones top to top.</p>
+    <button class="ghost" id="btnBack">Back</button>
+  </div>
+</div>
+
+<div class="ov" id="endOv" hidden>
+  <div class="panel">
+    <p class="big" id="endBig">&#x3084;&#x3063;&#x305f;!</p>
+    <p id="endTxt"></p>
+    <button id="btnRematch">Play again</button>
+    <button class="ghost" id="btnLeave">Leave table</button>
+  </div>
+</div>
+
+<script>
+(()=>{
+const WIN=7, PINK='#ff8fb1', MINT='#7fd8c3';
+const $=id=>document.getElementById(id);
+const cv=$('c'), ctx=cv.getContext('2d');
+let W=0,Hpx=0,dpr=1,H=1.6; // H = half-court length in width units
+function resize(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;Hpx=innerHeight;cv.width=W*dpr;cv.height=Hpx*dpr;H=Hpx/W}
+addEventListener('resize',resize);resize();
+
+/* ---------- audio ---------- */
+let ac=null;
+function audio(){try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume()}catch(e){}}
+function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.setValueAtTime(f,ac.currentTime);o.frequency.exponentialRampToValueAtTime(f*1.5,ac.currentTime+d);g.gain.setValueAtTime(v,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g).connect(ac.destination);o.start();o.stop(ac.currentTime+d)}catch(e){}}
+function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
+
+/* ---------- state ---------- */
+const S={mode:'lobby',role:'a',room:null,code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
+  ball:null,paddleX:.5,targetX:.5,serveAt:0,msg:'',msgUntil:0,trail:[]};
+const PW=.3, PY=()=>H-.2, BR=.04;
+const myColor=()=>S.role==='a'?PINK:MINT, theirColor=()=>S.role==='a'?MINT:PINK;
+
+/* ---------- input ---------- */
+function pt(e){const t=e.touches?e.touches[0]:e;return t.clientX/W}
+cv.addEventListener('pointerdown',e=>{audio();S.targetX=e.clientX/W});
+cv.addEventListener('pointermove',e=>{S.targetX=e.clientX/W});
+
+/* ---------- direct phone-to-phone link (PeerJS / WebRTC) ---------- */
+let peer=null, conn=null;
+function showErr(t){$('err').textContent=t;$('err').hidden=!t}
+function pub(){if(conn&&conn.open){try{conn.send({role:S.role,game:S.game,lost:S.lost,out:{n:S.outN,x:S.outX||0,vx:S.outVx||0,vy:S.outVy||0}})}catch(e){}}}
+
+function enter(code,role){
+  showErr('');
+  if(!window.Peer){showErr('Could not load the connection library. Check your internet and reload.');return}
+  try{peer&&peer.destroy()}catch(e){}
+  S.code=code;S.role=role;S.game=1;S.lost=0;S.themLost=0;S.outN=0;S.seenN=0;S.served=0;S.ball=null;S.otherPeer=null;
+  const id='phonepong-'+code.toLowerCase();
+  peer=role==='a'?new Peer(id):new Peer();
+  peer.on('open',()=>{
+    S.mode='online';$('lobby').hidden=true;$('hud').hidden=false;$('topHint').hidden=false;paintHud();
+    if(role==='a'){$('codeOut').textContent=code;$('waiting').hidden=false}
+    else{flash('connecting\u2026',4000);setup(peer.connect(id,{reliable:true}))}
+  });
+  peer.on('connection',c=>{if(conn&&conn.open){c.close();return}setup(c)});
+  peer.on('error',e=>{
+    const t=e&&e.type;
+    if(t==='unavailable-id'){enter(newCode(),'a');return}
+    leave();
+    showErr(t==='peer-unavailable'?'No table with that code. Check the letters and try again.':'Could not connect. Try both phones on the same Wi-Fi.');
+  });
+}
+function setup(c){
+  conn=c;
+  c.on('open',()=>pub());
+  c.on('data',d=>{if(d&&typeof d==='object')onOther(d)});
+  c.on('close',()=>{if(conn===c){conn=null;S.otherPeer=null;S.ball=null;if(S.mode==='online'){flash('partner left\u2026 \u307e\u3063\u3066\u306d',3000);if(S.role==='a')$('waiting').hidden=false}}});
+}
+
+function onOther(pr){
+  if(typeof pr.role!=='string')return;
+  if(!S.otherPeer){S.otherPeer='them';$('waiting').hidden=true;buzz(30);blip(660,.15);pub()}
+  // guest picks the opposite colour of whoever is there
+  if(pr.role===S.role){S.role=S.role==='a'?'b':'a';pub();paintHud()}
+  const g=+pr.game||1;
+  if(g>S.game){newGame(g,false)}
+  S.otherGame=g;
+  if(g===S.game){
+    const tl=+pr.lost||0;
+    if(tl>S.themLost){S.themLost=tl;onPoint(true)}
+    const out=pr.out||{};
+    if(+out.n>S.seenN){S.seenN=+out.n;receive(out)}
+  }
+  maybeFirstServe();
+}
+
+function maybeFirstServe(){
+  if(S.role==='a'&&S.otherPeer&&S.otherGame===S.game&&S.served!==S.game&&!S.ball&&!gameOver()){
+    S.served=S.game;S.serveAt=performance.now()+2200;flash('3 \u00b7 2 \u00b7 1 \u2026',2000)
+  }
+}
+
+function receive(o){
+  // their top edge is our top edge; mirror x because the phones face each other
+  const x=Math.min(1-BR,Math.max(BR,1-(+o.x||.5)));
+  S.ball={x,y:-BR,vx:-(+o.vx||0),vy:Math.abs(+o.vy||1)};
+  S.trail=[];
+}
+
+function sendAcross(b){
+  S.outN++;S.outX=b.x;S.outVx=b.vx;S.outVy=b.vy;pub();
+  S.ball=null;
+}
+
+function newGame(g,mine){
+  S.game=g;S.lost=0;S.themLost=0;S.outN=0;S.seenN=0;S.ball=null;S.served=0;
+  $('endOv').hidden=true;paintHud();
+  if(mine)pub();
+  pub();
+}
+
+/* ---------- gameplay ---------- */
+function serve(){
+  const sp=.95, a=(Math.random()-.5)*.8;
+  S.ball={x:S.paddleX,y:PY()-BR-.02,vx:Math.sin(a)*sp,vy:-Math.cos(a)*sp};
+  S.trail=[];blip(520,.08,'triangle');
+}
+function gameOver(){return S.lost>=WIN||S.themLost>=WIN}
+function onPoint(mine){
+  paintHud();
+  if(mine){buzz([20,40,20]);blip(880,.12);blip(1320,.18);flash('\u3044\u3044\u306d! +1',1200)}
+  if(gameOver())return endGame();
+}
+function miss(){
+  S.ball=null;
+  if(S.mode==='solo'){S.lost=0;flash('\u304a\u3063\u3068! again',1000);S.serveAt=performance.now()+900;return}
+  S.lost++;pub();buzz(120);blip(220,.25,'sawtooth',.08);paintHud();
+  if(gameOver())return endGame();
+  flash('\u304a\u3063\u3068\u2026 your serve',1100);S.serveAt=performance.now()+1300;
+}
+function endGame(){
+  S.ball=null;S.serveAt=0;
+  const won=S.themLost>=WIN;
+  $('endBig').textContent=won?'\u3084\u3063\u305f!':'\u3056\u3093\u306d\u3093\u2026';
+  $('endTxt').textContent=won?`You win ${S.themLost} \u2013 ${S.lost}. Victory dance allowed.`:`They win ${S.lost} \u2013 ${S.themLost}. Rematch?`;
+  $('endOv').hidden=false;
+}
+function flash(t,ms){S.msg=t;S.msgUntil=performance.now()+ms}
+
+let last=performance.now();
+function step(now){
+  const dt=Math.min(.033,(now-last)/1000);last=now;
+  S.paddleX+=(Math.min(1-PW/2,Math.max(PW/2,S.targetX))-S.paddleX)*Math.min(1,dt*22);
+  if(S.serveAt&&now>=S.serveAt&&!S.ball&&(S.mode==='solo'||S.otherPeer)){S.serveAt=0;serve()}
+  const b=S.ball;
+  if(b){
+    b.x+=b.vx*dt;b.y+=b.vy*dt;
+    if(b.x<BR){b.x=BR;b.vx=Math.abs(b.vx);blip(400,.04)}
+    if(b.x>1-BR){b.x=1-BR;b.vx=-Math.abs(b.vx);blip(400,.04)}
+    const py=PY();
+    if(b.vy>0&&b.y+BR>=py&&b.y-BR<=py+.05&&Math.abs(b.x-S.paddleX)<=PW/2+BR){
+      const off=(b.x-S.paddleX)/(PW/2), sp=Math.min(2.3,Math.hypot(b.vx,b.vy)*1.06), a=off*1.0;
+      b.vx=Math.sin(a)*sp;b.vy=-Math.cos(a)*sp;b.y=py-BR;
+      buzz(15);blip(600+Math.random()*200,.07);squish=1;
+      if(S.mode==='solo'){S.lost++;}
+    }
+    if(b.y<-BR*2&&b.vy<0){
+      if(S.mode==='solo'){b.y=-BR*2;b.vy=Math.abs(b.vy)}
+      else sendAcross(b);
+    }
+    if(S.ball&&b.y>H+BR)miss();
+    if(S.ball){S.trail.push({x:b.x,y:b.y});if(S.trail.length>10)S.trail.shift()}
+  }
+  draw(now);requestAnimationFrame(step);
+}
+
+/* ---------- drawing ---------- */
+let squish=0;
+const petals=Array.from({length:14},()=>({x:Math.random(),y:Math.random()*2,r:.012+Math.random()*.012,s:.03+Math.random()*.04,w:Math.random()*6}));
+function draw(now){
+  const u=W; ctx.setTransform(dpr,0,0,dpr,0,0);
+  const g=ctx.createLinearGradient(0,0,0,Hpx);g.addColorStop(0,'#fff8e8');g.addColorStop(1,'#ffeef4');ctx.fillStyle=g;ctx.fillRect(0,0,W,Hpx);
+  // polka dots
+  ctx.fillStyle='rgba(255,143,177,.09)';
+  for(let y=0;y<H+.2;y+=.16)for(let x=((y/.16)%2)*.08;x<1.05;x+=.16){ctx.beginPath();ctx.arc(x*u,y*u,.018*u,0,7);ctx.fill()}
+  // petals
+  ctx.fillStyle='rgba(255,170,200,.55)';
+  for(const p of petals){p.y+=p.s/60;if(p.y>H+.05){p.y=-.05;p.x=Math.random()}const x=(p.x+Math.sin(now/900+p.w)*.03)*u,y=p.y*u;ctx.save();ctx.translate(x,y);ctx.rotate(now/1200+p.w);ctx.beginPath();ctx.ellipse(0,0,p.r*u,p.r*u*.55,0,0,7);ctx.fill();ctx.restore()}
+  // net at top
+  ctx.fillStyle='#f6c4d4';
+  for(let x=0;x<1;x+=.06){ctx.beginPath();ctx.roundRect(x*u+2,4,.035*u,8,4);ctx.fill()}
+  // side lines
+  ctx.strokeStyle='#f6c4d4';ctx.lineWidth=3;ctx.setLineDash([2,10]);ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(.5*u,20);ctx.lineTo(.5*u,(PY()-.25)*u);ctx.stroke();ctx.setLineDash([]);
+  // trail
+  S.trail.forEach((t,i)=>{ctx.fillStyle=`rgba(255,143,177,${i/S.trail.length*.25})`;ctx.beginPath();ctx.arc(t.x*u,t.y*u,BR*u*(.4+i/S.trail.length*.5),0,7);ctx.fill()});
+  // ball: a little mochi
+  const b=S.ball;
+  if(b){const x=b.x*u,y=b.y*u,r=BR*u;
+    ctx.fillStyle='rgba(91,58,74,.12)';ctx.beginPath();ctx.ellipse(x+3,y+5,r,r*.8,0,0,7);ctx.fill();
+    ctx.fillStyle='#fff';ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#5b3a4a';ctx.beginPath();ctx.arc(x-r*.35,y-r*.05,r*.11,0,7);ctx.arc(x+r*.35,y-r*.05,r*.11,0,7);ctx.fill();
+    ctx.fillStyle='rgba(255,143,177,.7)';ctx.beginPath();ctx.ellipse(x-r*.55,y+r*.25,r*.18,r*.11,0,0,7);ctx.ellipse(x+r*.55,y+r*.25,r*.18,r*.11,0,0,7);ctx.fill();
+    ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y+r*.12,r*.16,.2,Math.PI-.2);ctx.stroke();
+  }
+  // paddle: chubby pill with a face
+  squish*=.85;
+  const px=S.paddleX*u,py=PY()*u,pw=PW*u*(1+squish*.08),ph=.055*u*(1-squish*.25);
+  ctx.fillStyle='rgba(91,58,74,.12)';ctx.beginPath();ctx.roundRect(px-pw/2+3,py+5,pw,ph,ph/2);ctx.fill();
+  ctx.fillStyle=myColor();ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2.5;ctx.beginPath();ctx.roundRect(px-pw/2,py,pw,ph,ph/2);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#5b3a4a';ctx.beginPath();ctx.arc(px-ph*.55,py+ph*.45,ph*.1,0,7);ctx.arc(px+ph*.55,py+ph*.45,ph*.1,0,7);ctx.fill();
+  ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(px,py+ph*.5,ph*.13,.2,Math.PI-.2);ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.55)';ctx.beginPath();ctx.ellipse(px-pw*.3,py+ph*.3,pw*.08,ph*.13,0,0,7);ctx.fill();
+  // message
+  if(now<S.msgUntil&&S.msg){ctx.font=`${Math.round(.07*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';ctx.fillStyle='#5b3a4a';ctx.globalAlpha=Math.min(1,(S.msgUntil-now)/300);ctx.fillText(S.msg,.5*u,H*.45*u);ctx.globalAlpha=1}
+  // solo rally counter
+  if(S.mode==='solo'){ctx.font=`${Math.round(.05*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';ctx.fillStyle='rgba(91,58,74,.5)';ctx.fillText(`rally ${S.lost}`,.5*u,(H-.06)*u)}
+}
+
+function paintHud(){
+  $('sMe').textContent=S.themLost;$('sThem').textContent=S.lost;
+  $('meDot').style.background=myColor();$('themDot').style.background=theirColor();
+  $('hud').hidden=S.mode!=='online';
+}
+
+/* ---------- buttons ---------- */
+function newCode(){const a='ABCDEFGHJKMNPQRSTUVWXYZ';return Array.from({length:4},()=>a[Math.floor(Math.random()*a.length)]).join('')}
+$('btnCreate').onclick=()=>{audio();enter(newCode(),'a')};
+$('btnJoin').onclick=()=>{audio();const c=$('codeIn').value.trim().toUpperCase();if(!/^[A-Z]{4}$/.test(c)){showErr('Type the 4-letter code from your partner\u2019s screen.');return}enter(c,'b')};
+$('codeIn').addEventListener('keydown',e=>{if(e.key==='Enter')$('btnJoin').click()});
+$('btnSolo').onclick=()=>{audio();S.mode='solo';S.lost=0;$('lobby').hidden=true;$('topHint').hidden=true;$('hud').hidden=true;flash('practice \u2661',1200);S.serveAt=performance.now()+900};
+function leave(){try{conn&&conn.close()}catch(e){}try{peer&&peer.destroy()}catch(e){}conn=null;peer=null;S.mode='lobby';S.ball=null;S.serveAt=0;S.otherPeer=null;
+  $('waiting').hidden=true;$('endOv').hidden=true;$('hud').hidden=true;$('topHint').hidden=true;$('lobby').hidden=false}
+$('btnBack').onclick=leave;$('btnLeave').onclick=leave;
+$('btnRematch').onclick=()=>{audio();newGame(Math.max(S.game,S.otherGame)+1,true);maybeFirstServe();if(S.role!=='a')flash('waiting for serve\u2026',2500)};
+
+// keep the screen awake while playing
+(async()=>{try{await navigator.wakeLock?.request('screen')}catch(e){}})();
+requestAnimationFrame(step);
+})();
+</script>
+
+</body>
+</html>
