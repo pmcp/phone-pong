@@ -118,12 +118,13 @@ const FX={
   bigball:{dur:10000,self:1,label:'BIG BALL',take:'\u3067\u3063\u304b\u3044! big ball'},
   mini:   {dur:8000, label:'TINY',  take:'\u3048\u3044\u3063! tiny paddle for them',   got:'\u3061\u3073\u2026 tiny paddle!'},
   round:  {dur:8000, label:'ROUND', take:'\u307e\u308b! round paddle for them',     got:'\u307e\u308b\u2026 round paddle!'},
+  smallball:{dur:8000,label:'TINY BALL',take:'\u307d\u3061\u3063! tiny ball for them',got:'\u3061\u3063\u3061\u3083\u2026 tiny ball!'},
   drunk:  {dur:8000, label:'DRUNK', take:'\u304b\u3093\u3071\u3044! drunk ball for them',   got:'\u3075\u3089\u3075\u3089\u2026 drunk ball!'},
   reverse:{dur:7000, label:'SWAP',  take:'\u3078\u3078! swapped controls for them', got:'\u3042\u308c? controls swapped!'},
   banana: {dur:12000,label:'BANANA',take:'\u307d\u3044\u3063! banana thrown',           got:'\u30d0\u30ca\u30ca! watch out'},
 };
 const on=(k,now)=>now<(S.fx[k]||0);
-const ballR=(b,now)=>BR*Math.max(.55,1-(b.r||0)*.035)*(on('bigball',now)?1.8:1);  // shrinks as the rally goes on
+const ballR=(b,now)=>BR*(on('bigball',now)?1.8:1)*(on('smallball',now)?.5:1);  // shrinks as the rally goes on
 const padW=now=>PW*(on('big',now)?1.6:1)*(on('mini',now)?.55:1);
 const roundR=now=>.075*(on('big',now)?1.4:1)*(on('mini',now)?.6:1);
 const myColor=()=>S.role==='a'?PINK:MINT, theirColor=()=>S.role==='a'?MINT:PINK;
@@ -297,7 +298,7 @@ function step(now){
   const playing=(S.mode==='solo'||(S.mode==='online'&&S.otherPeer))&&!gameOver()&&$('endOv').hidden;
   if(playing&&!S.nextCookie)S.nextCookie=now+4000+Math.random()*4000;
   if(playing&&now>S.nextCookie&&S.cookies.length<1){
-    const pool=S.mode==='solo'?['cookie','cookie','big','bigball']:['cookie','cookie','cookie','big','bigball','mini','round','drunk','reverse','banana'];
+    const pool=S.mode==='solo'?['cookie','cookie','big','bigball']:['cookie','cookie','cookie','big','bigball','mini','smallball','round','drunk','reverse','banana'];
     const t=pool[Math.floor(Math.random()*pool.length)];
     S.cookies.push({t,x:.15+Math.random()*.7,y:-.06,vy:.2+Math.random()*.08,w:Math.random()*6});S.nextCookie=now+5500+Math.random()*5500}
   for(const k of S.cookies){k.y+=k.vy*dt;k.x+=Math.sin(now/600+k.w)*.04*dt;
@@ -394,6 +395,7 @@ function drawItem(k,now,u){
     const pill=(w,cy)=>{ctx.fillStyle=col;ctx.beginPath();ctx.roundRect(x-w/2,cy-h/2,w,h,h/2);ctx.fill();ctx.stroke()};
     if(k.t==='big'){pill(R*1.1,y);arrow(x+R*.6,y,x+R*.85,y);arrow(x-R*.6,y,x-R*.85,y)}
     else if(k.t==='mini'){pill(R*.42,y);arrow(x+R*.85,y,x+R*.35,y);arrow(x-R*.85,y,x-R*.35,y)}
+    else if(k.t==='smallball'){ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x,y,R*.2,0,7);ctx.fill();ctx.stroke();arrow(x+R*.8,y-R*.8,x+R*.32,y-R*.32);arrow(x-R*.8,y+R*.8,x-R*.32,y+R*.32)}
     else if(k.t==='round'){ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,R*.42,0,7);ctx.fill();ctx.stroke()}
     else if(k.t==='bigball'){ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x,y,R*.42,0,7);ctx.fill();ctx.stroke();arrow(x+R*.5,y-R*.5,x+R*.78,y-R*.78);arrow(x-R*.5,y+R*.5,x-R*.78,y+R*.78)}
     else if(k.t==='drunk'){ctx.beginPath();for(let i=0;i<=12;i++){const px=x-R*.7+i*R*.1,py=y+R*.15+Math.sin(i*1.1)*R*.18;i?ctx.lineTo(px,py):ctx.moveTo(px,py)}ctx.stroke();
