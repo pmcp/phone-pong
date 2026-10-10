@@ -260,7 +260,7 @@ function step(now){
   if(S.serveAt&&now>=S.serveAt&&!S.ball&&(S.mode==='solo'||S.otherPeer)){S.serveAt=0;serve()}
   const b=S.ball;
   if(b){
-    if(on('drunk',now)){b.vx+=Math.cos(now/140)*2.6*dt;b.vx=Math.max(-2.4,Math.min(2.4,b.vx))}
+    if(on('drunk',now)){b.vx+=Math.sin(now/420)*5.5*dt;b.vx=Math.max(-2.2,Math.min(2.2,b.vx))}  // slow, big left-right curves
     b.x+=b.vx*dt;b.y+=b.vy*dt;
     const rb=ballR(b,now), pw=padW(now), py=PY();
     if(b.x<rb){b.x=rb;b.vx=Math.abs(b.vx);blip(400,.04)}
