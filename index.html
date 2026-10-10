@@ -295,7 +295,7 @@ function step(now){
   if(b&&b.stuck){
     // glued to the paddle until the finger lifts (or sticky runs out)
     const rb=ballR(b,now);b.x=clamp(S.paddleX+b.off,rb,1-rb);b.y=PY()-rb;roll(S.padV,0,dt,rb);
-    if(!S.touching||stickyLvl(now)<3){
+    if(!S.touching||stickyLvl(now)<2){
       b.stuck=false;const sp=hitSpeed(),a=clamp(S.padV*.18,-.55,.55);
       b.vx=Math.sin(a)*sp;b.vy=-Math.cos(a)*sp;b.spin=clamp(S.padV*grip(now)*2,-4,4);b.sq=1;
       burst(b.x,b.y,'#ffd86e',12,'star',.8);blip(760,.1,'triangle');buzz(25);
@@ -327,7 +327,7 @@ function step(now){
       }
     }else if(b.vy>0&&b.y+rb>=py&&b.y-rb<=py+.05&&Math.abs(b.x-S.paddleX)<=pw/2+rb){
       b.y=py-rb;
-      if(stickyLvl(now)>=3&&S.touching){b.stuck=true;b.off=b.x-S.paddleX;b.vx=0;b.vy=0;b.spin=0;b.r=(b.r||0)+1;b.sq=1;squish=1;
+      if(stickyLvl(now)>=2&&S.touching){b.stuck=true;b.off=b.x-S.paddleX;b.vx=0;b.vy=0;b.spin=0;b.r=(b.r||0)+1;b.sq=1;squish=1;
         burst(b.x,py,'#c9a2ff',8,'dot',.4);blip(260,.12,'sine');buzz(20);if(S.mode==='solo')S.lost+=S.mult}
       else{
         const off=clamp((b.x-S.paddleX)/(pw/2),-1,1), sp=hitSpeed(), a=off*1.0, g=grip(now);
@@ -358,9 +358,9 @@ function step(now){
       buzz([10,30,10]);blip(988,.08,'square',.08);setTimeout(()=>blip(1319,.12,'square',.08),90);
       if(k.t==='cookie'){S.mult=Math.min(5,S.mult+1);pub();paintHud();rescaleBall();flash('\u306b\u3083! \u00d7'+S.mult,1100)}
       else{const f=FX[k.t];
-        if(f.self){if(k.t==='sticky')S.stk=on('sticky',now)?Math.min(3,(S.stk||1)+1):1;if(k.t==='bigball')S.bbl=on('bigball',now)?Math.min(3,(S.bbl||1)+1):1;S.fx[k.t]=now+f.dur;if(k.t==='big')S.fx.mini=0}
+        if(f.self){if(k.t==='sticky')S.stk=on('sticky',now)?Math.min(2,(S.stk||1)+1):1;if(k.t==='bigball')S.bbl=on('bigball',now)?Math.min(3,(S.bbl||1)+1):1;S.fx[k.t]=now+f.dur;if(k.t==='big')S.fx.mini=0}
         else{S.zapN++;S.zapK=k.t;pub()}
-        flash(f.take+(k.t==='bigball'&&S.bbl>1?' \u00d7'+S.bbl:'')+(k.t==='sticky'&&S.stk>1?' \u00d7'+S.stk+(S.stk>=3?' hold to stick!':''):''),1400)}}}
+        flash(f.take+(k.t==='bigball'&&S.bbl>1?' \u00d7'+S.bbl:'')+(k.t==='sticky'&&S.stk>1?' \u00d7'+S.stk+(S.stk>=2?' hold to stick!':''):''),1400)}}}
   S.cookies=S.cookies.filter(k=>!k.got&&k.y<H+.1);
   for(const p of S.parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=p.g*dt;p.vx*=Math.exp(-dt*2);p.life-=dt}
   S.parts=S.parts.filter(p=>p.life>0);
