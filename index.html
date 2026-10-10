@@ -302,17 +302,18 @@ function step(now){
   if(playing&&now>S.nextCookie&&S.cookies.length<1){
     const pool=S.mode==='solo'?['cookie','cookie','big','bigball']:['cookie','cookie','cookie','big','bigball','mini','smallball','round','drunk','reverse','banana'];
     const t=pool[Math.floor(Math.random()*pool.length)];
-    S.cookies.push({t,x:.15+Math.random()*.7,y:-.06,vy:.2+Math.random()*.08,w:Math.random()*6});S.nextCookie=now+5500+Math.random()*5500}
-  for(const k of S.cookies){k.y+=k.vy*dt;k.x+=Math.sin(now/600+k.w)*.04*dt;
-    const py=PY(),reach=isRound?roundR(now):padW(now)/2;
-    if(!k.got&&k.y+CR>=py-(isRound?roundR(now):0)&&k.y-CR<=py+.06&&Math.abs(k.x-S.paddleX)<=reach+CR*.6){k.got=1;
+    S.cookies.push({t,x:.15+Math.random()*.7,y0:H*(.18+Math.random()*.42),y:0,born:now,w:Math.random()*6});S.nextCookie=now+5500+Math.random()*5500}
+  // items float on your half; hit one with the ball to collect it
+  for(const k of S.cookies){k.x+=Math.sin(now/900+k.w)*.03*dt;k.y=k.y0+Math.sin(now/700+k.w)*.02;
+    const bb=S.ball;
+    if(!k.got&&bb&&Math.hypot(bb.x-k.x,bb.y-k.y)<ballR(bb,now)+CR*1.1){k.got=1;
       buzz([10,30,10]);blip(988,.08,'square',.08);setTimeout(()=>blip(1319,.12,'square',.08),90);
       if(k.t==='cookie'){S.mult=Math.min(5,S.mult+1);pub();paintHud();rescaleBall();flash('\u306b\u3083! \u00d7'+S.mult,1100)}
       else{const f=FX[k.t];
         if(f.self){S.fx[k.t]=now+f.dur;if(k.t==='big')S.fx.mini=0}
         else{S.zapN++;S.zapK=k.t;pub()}
         flash(f.take,1300)}}}
-  S.cookies=S.cookies.filter(k=>!k.got&&k.y<H+.1);
+  S.cookies=S.cookies.filter(k=>!k.got&&now-k.born<12000);
   if(!playing)S.cookies=[];
   draw(now);requestAnimationFrame(step);
 }
@@ -348,7 +349,7 @@ function draw(now){
     ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y+r*.12,r*.16,.2,Math.PI-.2);ctx.stroke();
   }
   if(S.banana)drawBanana(S.banana.x*u,S.banana.y*u,.045*u,Math.sin(now/400)*.15);
-  for(const k of S.cookies)drawItem(k,now,u);
+  for(const k of S.cookies){const age=now-k.born;ctx.globalAlpha=Math.max(0,Math.min(1,age/300,(12000-age)/2000));drawItem(k,now,u);ctx.globalAlpha=1}
   // paddle: chubby pill with a face (or a ball, when someone made it round)
   squish*=.85;
   const px=S.paddleX*u,py=PY()*u;
