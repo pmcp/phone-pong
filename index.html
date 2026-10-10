@@ -249,6 +249,23 @@ function endGame(){
 function flash(t,ms){S.msg=t;S.msgUntil=performance.now()+ms}
 
 let last=performance.now();
+// the ball's face rolls: keep a 3D orientation and turn it by the distance travelled
+let rot=[1,0,0,0,1,0,0,0,1];
+function roll(vx,vy,dt,r){
+  const v=Math.hypot(vx,vy);if(v<1e-6)return;
+  const th=v*dt/r,ax=-vy/v,ay=vx/v,c=Math.cos(th),sn=Math.sin(th),t=1-c;
+  const R=[c+ax*ax*t,ax*ay*t,ay*sn, ax*ay*t,c+ay*ay*t,-ax*sn, -ay*sn,ax*sn,c];
+  const m=rot,o=new Array(9);
+  for(let i=0;i<3;i++)for(let j=0;j<3;j++)o[i*3+j]=R[i*3]*m[j]+R[i*3+1]*m[3+j]+R[i*3+2]*m[6+j];
+  // re-orthonormalise the columns so rounding never warps the face
+  const col=k=>[o[k],o[3+k],o[6+k]],set=(k,v)=>{o[k]=v[0];o[3+k]=v[1];o[6+k]=v[2]};
+  const nrm=v=>{const l=Math.hypot(...v)||1;return v.map(q=>q/l)},dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  let a=nrm(col(0)),b=col(1);const d=dot(a,b);b=nrm(b.map((q,i)=>q-d*a[i]));
+  const cc=[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+  set(0,a);set(1,b);set(2,cc);rot=o;
+}
+const onSphere=(px,py)=>[px,py,Math.sqrt(Math.max(0,1-px*px-py*py))];
+const turn=v=>[rot[0]*v[0]+rot[1]*v[1]+rot[2]*v[2],rot[3]*v[0]+rot[4]*v[1]+rot[5]*v[2],rot[6]*v[0]+rot[7]*v[1]+rot[8]*v[2]];
 function hitPaddle(b){
   b.r=(b.r||0)+1;
   buzz(15);blip(600+Math.random()*200,.07);squish=1;
@@ -265,6 +282,7 @@ function step(now){
     if(on('drunk',now)){b.vx+=Math.sin(now/420)*5.5*dt;b.vx=Math.max(-2.2,Math.min(2.2,b.vx))}  // slow, big left-right curves
     b.x+=b.vx*dt;b.y+=b.vy*dt;
     const rb=ballR(b,now), pw=padW(now), py=PY();
+    roll(b.vx,b.vy,dt,rb);
     if(b.x<rb){b.x=rb;b.vx=Math.abs(b.vx);blip(400,.04)}
     if(b.x>1-rb){b.x=1-rb;b.vx=-Math.abs(b.vx);blip(400,.04)}
     // banana peel: the ball slips and shoots off in a new direction
@@ -342,11 +360,21 @@ function draw(now){
   // ball: a little mochi
   if(b){const x=b.x*u,y=b.y*u,r=ballR(b,now)*u,drunk=on('drunk',now);
     ctx.fillStyle='rgba(91,58,74,.12)';ctx.beginPath();ctx.ellipse(x+3,y+5,r,r*.8,0,0,7);ctx.fill();
-    ctx.fillStyle='#fff';ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();ctx.stroke();
-    if(drunk){ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.beginPath();for(const s of[-1,1]){ctx.moveTo(x+s*r*.5,y-r*.2);ctx.lineTo(x+s*r*.25,y-r*.05);ctx.lineTo(x+s*r*.5,y+r*.1)}ctx.stroke()}
-    else{ctx.fillStyle='#5b3a4a';ctx.beginPath();ctx.arc(x-r*.35,y-r*.05,r*.11,0,7);ctx.arc(x+r*.35,y-r*.05,r*.11,0,7);ctx.fill();}
-    ctx.fillStyle='rgba(255,143,177,.7)';ctx.beginPath();ctx.ellipse(x-r*.55,y+r*.25,r*.18,r*.11,0,0,7);ctx.ellipse(x+r*.55,y+r*.25,r*.18,r*.11,0,0,7);ctx.fill();
-    ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y+r*.12,r*.16,.2,Math.PI-.2);ctx.stroke();
+    const g=ctx.createRadialGradient(x-r*.35,y-r*.4,r*.1,x,y,r);g.addColorStop(0,'#ffffff');g.addColorStop(1,'#ffeef3');
+    ctx.fillStyle=g;ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();ctx.stroke();
+    ctx.save();ctx.beginPath();ctx.arc(x,y,r-1.5,0,7);ctx.clip();
+    const P=(px,py)=>{const w=turn(onSphere(px,py));return {x:x+w[0]*r,y:y+w[1]*r,z:w[2]}};
+    // blush
+    ctx.fillStyle='rgba(255,143,177,.7)';
+    for(const s of[-1,1]){const p=P(s*.55,.25);if(p.z>0){const k=.35+.65*p.z;ctx.beginPath();ctx.ellipse(p.x,p.y,r*.18*k,r*.11*k,0,0,7);ctx.fill()}}
+    // eyes
+    for(const s of[-1,1]){const p=P(s*.35,-.05);if(p.z<=0)continue;const k=.35+.65*p.z;
+      if(drunk){ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;const e=r*.13*k;ctx.beginPath();ctx.moveTo(p.x-e,p.y-e);ctx.lineTo(p.x+e,p.y+e);ctx.moveTo(p.x+e,p.y-e);ctx.lineTo(p.x-e,p.y+e);ctx.stroke()}
+      else{ctx.fillStyle='#5b3a4a';ctx.beginPath();ctx.arc(p.x,p.y,r*.11*k,0,7);ctx.fill()}}
+    // smile
+    ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.beginPath();let pen=false;
+    for(let a=.2;a<=Math.PI-.2+1e-6;a+=(Math.PI-.4)/8){const p=P(.16*Math.cos(a),.12+.16*Math.sin(a));if(p.z>0){pen?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);pen=true}else pen=false}
+    ctx.stroke();ctx.restore();
   }
   if(S.banana)drawBanana(S.banana.x*u,S.banana.y*u,.045*u,Math.sin(now/400)*.15);
   for(const k of S.cookies){const age=now-k.born;ctx.globalAlpha=Math.max(0,Math.min(1,age/300,(12000-age)/2000));drawItem(k,now,u);ctx.globalAlpha=1}
