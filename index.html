@@ -84,7 +84,7 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
     </div>
     <p class="err" id="err" hidden></p>
     <button class="ghost" id="btnSolo">Practice alone</button>
-    <p class="small" id="ver">v21</p>
+    <p class="small" id="ver">v22</p>
   </div>
 </div>
 
@@ -133,7 +133,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=21;   // also shown on the start screen
+const VER=22;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -297,7 +297,7 @@ function onPoint(mine,v){
 function miss(){
   if(S.ball)burst(S.ball.x,H,'#5b3a4a',10,'dot',.6);S.shake=1;
   S.ball=null;
-  if(S.mode==='solo'){S.lost=0;S.mult=1;flash('\u304a\u3063\u3068! again',1000);S.serveAt=performance.now()+900;return}
+  if(S.mode==='solo'){S.lost=0;S.mult=1;paintHud();flash('\u304a\u3063\u3068! again',1000);S.serveAt=performance.now()+900;return}
   S.lost+=S.themMult;S.mult=1;pub();popChip('sThem');buzz(120);blip(220,.25,'sawtooth',.08);paintHud();
   if(gameOver())return endGame();
   flash('\u304a\u3063\u3068\u2026 your serve',1100);S.serveAt=performance.now()+1300;
@@ -346,7 +346,7 @@ function useSlot(i){
 function hitPaddle(b){
   b.r=(b.r||0)+1;b.sq=1;burst(b.x,b.y+ballR(b,performance.now()),myColor(),7,'dot',.5);
   buzz(15);blip(600+Math.random()*200,.07);squish=1;
-  if(S.mode==='solo')S.lost+=S.mult;
+  if(S.mode==='solo')soloPoint();
 }
 function step(now){
   const dt=Math.min(.033,(now-last)/1000);last=now;
@@ -393,7 +393,7 @@ function step(now){
     }else if(b.vy>0&&b.y+rb>=py&&b.y-rb<=py+.05&&Math.abs(b.x-S.paddleX)<=pw/2+rb){
       b.y=py-rb;
       if(stickyLvl(now)>=2&&S.touching){b.stuck=true;b.stuckAt=now;b.off=b.x-S.paddleX;b.vx=0;b.vy=0;b.spin=0;b.r=(b.r||0)+1;b.sq=1;squish=1;
-        burst(b.x,py,'#c9a2ff',8,'dot',.4);blip(260,.12,'sine');buzz(20);if(S.mode==='solo')S.lost+=S.mult}
+        burst(b.x,py,'#c9a2ff',8,'dot',.4);blip(260,.12,'sine');buzz(20);if(S.mode==='solo')soloPoint()}
       else{
         const off=clamp((b.x-S.paddleX)/(pw/2),-1,1), sp=hitSpeed(), a=off*1.0, g=grip(now);
         setDir(b,Math.sin(a)*sp+S.padV*g*.6,-1,sp);
@@ -543,8 +543,6 @@ function draw(now){
     const age=now-(S.msgAt||0),sc=backOut(age/280),wob=Math.sin(age/60)*Math.max(0,1-age/400)*.08;
     ctx.save();ctx.translate(.5*u,H*.45*u);ctx.rotate(wob);ctx.scale(sc,sc);
     ctx.lineWidth=6;ctx.strokeStyle='#fffdfb';ctx.lineJoin='round';ctx.strokeText(S.msg,0,0);ctx.fillText(S.msg,0,0);ctx.restore();ctx.globalAlpha=1}
-  // solo rally counter
-  if(S.mode==='solo'){ctx.font=`${Math.round(.05*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';ctx.fillStyle='rgba(91,58,74,.5)';ctx.fillText(`rally ${S.lost}`+(S.mult>1?`  \u00d7${S.mult}`:''),.5*u,(H-.06)*u)}
 }
 
 // a little card in the corner showing her paddle as it is right now, plus her timers
@@ -683,7 +681,12 @@ function drawCookieShape(x,y,r,rot){
   for(const s of[-1,1]){ctx.moveTo(s*r*.35,r*.25);ctx.lineTo(s*r*.8,r*.18);ctx.moveTo(s*r*.35,r*.35);ctx.lineTo(s*r*.8,r*.4)}
   ctx.stroke();ctx.restore();
 }
+let best=0;try{best=+localStorage.getItem('pp-best')||0}catch(e){}
+function soloPoint(){S.lost+=S.mult;if(S.lost>best){best=S.lost;try{localStorage.setItem('pp-best',best)}catch(e){}}paintHud();popChip('sMe')}
 function paintHud(){
+  if(S.mode==='solo'){   // practice: your points this rally, and your best ever on this phone
+    $('sMe').textContent='points '+S.lost;$('sThem').textContent='best '+best;$('mMe').textContent=S.mult>1?'\u00d7'+S.mult:'';$('mThem').textContent='';
+    $('meDot').style.background=myColor();$('themDot').style.background='#ffd86e';$('hud').hidden=false;return}
   $('sMe').textContent=S.themLost;$('sThem').textContent=S.lost;$('mMe').textContent=S.mult>1?'\u00d7'+S.mult:'';$('mThem').textContent=S.themMult>1?'\u00d7'+S.themMult:'';
   $('meDot').style.background=myColor();$('themDot').style.background=theirColor();
   $('hud').hidden=S.mode!=='online';
@@ -721,7 +724,7 @@ $('btnJoin').onclick=()=>{audio();const c=$('codeIn').value.trim().toUpperCase()
 $('btnScan').onclick=()=>{audio();startScan()};
 $('btnScanCancel').onclick=stopScan;
 $('codeIn').addEventListener('keydown',e=>{if(e.key==='Enter')$('btnJoin').click()});
-$('btnSolo').onclick=()=>{audio();S.mode='solo';S.lost=0;$('lobby').hidden=true;$('topHint').hidden=true;$('hud').hidden=true;flash('practice \u2661',1200);S.serveAt=performance.now()+900};
+$('btnSolo').onclick=()=>{audio();S.mode='solo';S.lost=0;$('lobby').hidden=true;$('topHint').hidden=true;S.mult=1;paintHud();flash('practice \u2661',1200);S.serveAt=performance.now()+900};
 function leave(){try{conn&&conn.close()}catch(e){}try{peer&&peer.destroy()}catch(e){}conn=null;peer=null;S.mode='lobby';S.ball=null;S.serveAt=0;S.otherPeer=null;
   $('waiting').hidden=true;$('endOv').hidden=true;$('hud').hidden=true;$('topHint').hidden=true;$('lobby').hidden=false}
 $('btnBack').onclick=leave;$('btnLeave').onclick=leave;
