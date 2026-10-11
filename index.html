@@ -30,7 +30,7 @@ html,body{height:100%;margin:0;overflow:hidden;background:var(--wall);color:var(
 .chip,.dot{display:none}
 .top{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 14px);text-align:center;font-family:var(--display);font-size:11px;letter-spacing:.12em;opacity:.45;pointer-events:none}
 .ov{position:fixed;inset:0;display:grid;place-items:center;padding:16px;background:rgba(244,239,230,.86);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
-.panel{width:min(340px,100%);background:var(--card);border:4px solid var(--ink);border-radius:26px;padding:26px 20px 20px;text-align:center;
+.panel{max-height:calc(100% - 24px);overflow-y:auto;width:min(340px,100%);background:var(--card);border:4px solid var(--ink);border-radius:26px;padding:26px 20px 20px;text-align:center;
   box-shadow:0 0 0 6px #fff,8px 10px 0 6px var(--ink);transform:rotate(-1.5deg);display:grid;gap:14px}
 h1{margin:-6px -8px 0;line-height:0}
 h1 svg{width:100%;height:auto;overflow:visible;font-family:var(--bubble)}
@@ -42,6 +42,9 @@ button:active{transform:translateY(4px);box-shadow:0 1px 0 var(--ink)}
 /* a paint drip hanging off the main buttons */
 button:not(.ghost)::after{content:"";position:absolute;right:20%;bottom:-17px;width:13px;height:17px;background:inherit;border:3px solid var(--ink);border-top:0;border-radius:0 0 8px 8px;pointer-events:none}
 button.mint{background:var(--mint)}
+button.purple{background:var(--purple)}
+#partyBox{display:grid;gap:10px}
+#diagram svg{width:100%;max-width:170px;height:auto;display:block;margin:0 auto}
 button.ghost{background:transparent;color:var(--ink);border:0;box-shadow:none;text-shadow:none;font-size:13px;padding:6px;opacity:.75}
 button:focus-visible,input:focus-visible{outline:3px solid var(--purple);outline-offset:3px}
 .row{display:flex;gap:10px}
@@ -123,18 +126,24 @@ input::placeholder{color:rgba(29,18,48,.45)}
       <button class="mint" id="btnScan">Scan QR</button>
     </div>
     <p class="err" id="err" hidden></p>
+    <button class="purple" id="btnParty">Party table &#xb7; 3&#x2013;5 phones</button>
     <button class="ghost" id="btnSolo">Practice alone</button>
-    <p class="small" id="ver">v35</p>
+    <p class="small" id="ver">v36</p>
   </div>
 </div>
 
 <div class="ov" id="waiting" hidden>
   <div class="panel">
-    <p class="jp">Waiting for player 2</p>
-    <p>Let your partner scan this, or tell them the code:</p>
+    <p class="jp" id="waitTitle">Waiting for player 2</p>
+    <p id="waitText">Let your partner scan this, or tell them the code:</p>
     <div class="qr" id="qr" aria-label="QR code to join"></div>
     <div class="code" id="codeOut">----</div>
-    <p class="small">Scan with the iPhone camera, or open this page, tap Join and type the code. Then lay the phones top to top.</p>
+    <div id="partyBox" hidden>
+      <div id="diagram" aria-label="How to lay the phones"></div>
+      <p class="small" id="rosterTxt"></p>
+      <button id="btnGo" hidden>Start</button>
+    </div>
+    <p class="small" id="waitHelp">Scan with the iPhone camera, or open this page, tap Join and type the code. Then lay the phones top to top.</p>
     <button class="ghost" id="btnBack">Back</button>
   </div>
 </div>
@@ -188,7 +197,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=35;   // also shown on the start screen
+const VER=36;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -201,9 +210,9 @@ const bananaLeft=now=>Math.max(0,S.rain.until-now,...S.bananas.map(b=>b.until-no
 const raining=now=>now<S.rain.until;
 // two holes at random spots on this half, far enough apart; in one, out the other
 const PR=.045;
-function makePortals(exit){if(S.mode==='online')return {a:{x:.15+Math.random()*.7,y:H*(.12+Math.random()*.45)},b:null,out:!!exit,cd:0};let a,b;do{a={x:.15+Math.random()*.7,y:H*(.12+Math.random()*.62)};b={x:.15+Math.random()*.7,y:H*(.12+Math.random()*.62)}}while(Math.hypot(a.x-b.x,a.y-b.y)<.45);return {a,b,cd:0}}
+function makePortals(exit){if(S.mode==='online'||S.mode==='party')return {a:{x:.15+Math.random()*.7,y:H*(.12+Math.random()*.45)},b:null,out:!!exit,cd:0};let a,b;do{a={x:.15+Math.random()*.7,y:H*(.12+Math.random()*.62)};b={x:.15+Math.random()*.7,y:H*(.12+Math.random()*.62)}}while(Math.hypot(a.x-b.x,a.y-b.y)<.45);return {a,b,cd:0}}
 const zoneY=()=>PY()-.11;   // bonuses break apart when they reach this line
-const sharedMult=()=>S.mode==='online'?Math.min(9,1+(S.mult-1)+(S.themMult-1)):S.mult;
+const sharedMult=()=>S.mode==='party'?partyMult():S.mode==='online'?Math.min(9,1+(S.mult-1)+(S.themMult-1)):S.mult;
 const slotCap=t=>t==='sticky'?2:3;   // how many of one kind a slot can stack
 const HOLD=2500;   // ms you may keep the ball stuck to your paddle
 const Z=.78;   // zoom: everything on the table is drawn this much smaller, giving more room
@@ -232,7 +241,7 @@ function setDir(b,vx,vy,sp){const s=Math.sign(vy)||-1;vx=clamp(vx,-.92*sp,.92*sp
 const ballR=(b,now)=>BR*(on('bigball',now)?[1,1.8,2.6,3.3][S.bbl||1]:1)*(on('smallball',now)?.5:1);  // shrinks as the rally goes on
 const padW=now=>PW*(on('big',now)?1.6:1)*(on('mini',now)?.55:1);
 const roundR=now=>.075*Z*(on('big',now)?1.4:1)*(on('mini',now)?.6:1);
-const myColor=()=>S.role==='a'?PINK:MINT, theirColor=()=>S.role==='a'?MINT:PINK;
+const myColor=()=>S.mode==='party'?SEATC[P.me]:S.role==='a'?PINK:MINT, theirColor=()=>S.role==='a'?MINT:PINK;
 
 /* ---------- input ---------- */
 function pt(e){const t=e.touches?e.touches[0]:e;return t.clientX/W}
@@ -240,6 +249,7 @@ function pt(e){const t=e.touches?e.touches[0]:e;return t.clientX/W}
 function slotPos(i){const sb=SB,r=Math.min(34,W*.085);return {x:i?W-16-r:16+r,y:Hpx-sb-12-r,r}}
 function slotHit(x,y){for(let i=0;i<2;i++){const p=slotPos(i);if(Math.hypot(x-p.x,y-p.y)<p.r+8)return i}return -1}
 cv.addEventListener('pointerdown',e=>{audio();
+  if(S.pick){const tg=pickHit(e.clientX,e.clientY);if(tg>=0){e.preventDefault();fireAt(S.pick.slot,tg);S.pick=null;return}S.pick=null}
   const hit=S.mode!=='lobby'?slotHit(e.clientX,e.clientY):-1;
   if(hit>=0){e.preventDefault();useSlot(hit);return}
   S.padPtr=e.pointerId;S.touching=true;S.targetX=e.clientX/W});
@@ -249,7 +259,7 @@ cv.addEventListener('pointermove',e=>{if(S.padPtr===null||e.pointerId===S.padPtr
 /* ---------- direct phone-to-phone link (PeerJS / WebRTC) ---------- */
 let peer=null, conn=null;
 function showErr(t){$('err').textContent=t;$('err').hidden=!t}
-function pub(){if(conn&&conn.open){try{conn.send({role:S.role,game:S.game,lost:S.lost,mult:S.mult,out:{n:S.outN,x:S.outX||0,vx:S.outVx||0,vy:S.outVy||0,r:S.outR||0,s:S.outS||0,w:S.outW||0},zap:{n:S.zapN,k:S.zapK,m:S.zapM||1},st:myStatus(),v:VER})}catch(e){}}}
+function pub(){if(S.mode==='party'){partyStatus();return}if(conn&&conn.open){try{conn.send({role:S.role,game:S.game,lost:S.lost,mult:S.mult,out:{n:S.outN,x:S.outX||0,vx:S.outVx||0,vy:S.outVy||0,r:S.outR||0,s:S.outS||0,w:S.outW||0},zap:{n:S.zapN,k:S.zapK,m:S.zapM||1},st:myStatus(),v:VER})}catch(e){}}}
 
 function myStatus(){
   const now=performance.now(),fx={};
@@ -271,7 +281,7 @@ function enter(code,role){
   peer=role==='a'?new Peer(id):new Peer();
   peer.on('open',()=>{
     S.mode='online';$('lobby').hidden=true;$('hud').hidden=false;$('topHint').hidden=false;paintHud();
-    if(role==='a'){$('codeOut').textContent=code;drawQR(code);$('waiting').hidden=false}
+    if(role==='a'){$('codeOut').textContent=code;drawQR(code);classicWaitUI();$('waiting').hidden=false}
     else{flash('connecting\u2026',4000);setup(peer.connect(id,{reliable:true}))}
   });
   peer.on('connection',c=>{if(conn&&conn.open){c.close();return}setup(c)});
@@ -285,8 +295,8 @@ function enter(code,role){
 function setup(c){
   conn=c;
   c.on('open',()=>pub());
-  c.on('data',d=>{if(d&&typeof d==='object')onOther(d)});
-  c.on('close',()=>{if(conn===c){conn=null;S.otherPeer=null;S.ball=null;if(S.mode==='online'){flash('Partner left',3000);if(S.role==='a')$('waiting').hidden=false}}});
+  c.on('data',d=>{if(d&&typeof d==='object'){if(d.t)pGuest(d,c);else onOther(d)}});
+  c.on('close',()=>{if(pconn===c){flash('Host left',2500);setTimeout(leave,1500);return}if(conn===c){conn=null;S.otherPeer=null;S.ball=null;if(S.mode==='online'){flash('Partner left',3000);if(S.role==='a')$('waiting').hidden=false}}});
 }
 
 function onOther(pr){
@@ -337,6 +347,7 @@ function receive(o){
 }
 
 function sendAcross(b,warp){
+  if(S.mode==='party'){partyOut(b,warp);return}
   S.outN++;S.outX=b.x;S.outVx=b.vx;S.outVy=b.vy;S.outR=b.r||0;S.outS=b.spin||0;S.outW=warp?1:0;pub();
   S.ball=null;
 }
@@ -354,7 +365,7 @@ function serve(){
   S.ball={x:S.paddleX,y:PY()-BR-.02,vx:Math.sin(a)*sp,vy:-Math.cos(a)*sp,r:0};
   S.trail=[];blip(520,.08,'triangle');
 }
-function gameOver(){return S.mode==='online'&&(S.lost>=WIN||S.themLost>=WIN)}
+function gameOver(){if(S.mode==='party')return P.over||!P.started;return S.mode==='online'&&(S.lost>=WIN||S.themLost>=WIN)}
 function onPoint(mine,v){
   paintHud();
   if(mine){for(let i=0;i<3;i++)burst(.2+i*.3,.15,[PINK,MINT,'#ffd400'][i],10,'star',.9);popChip('sMe');buzz([20,40,20]);blip(880,.12);blip(1320,.18);flash('+'+(v||1),1200)}
@@ -363,6 +374,7 @@ function onPoint(mine,v){
 function miss(){
   if(S.ball)burst(S.ball.x,H,'#1d1230',10,'dot',.6);S.shake=1;
   S.ball=null;
+  if(S.mode==='party'){partyMiss();return}
   if(S.mode==='solo'){S.lost=0;S.mult=1;paintHud();flash('Missed',1000);S.serveAt=performance.now()+900;return}
   S.lost+=sharedMult();S.mult=1;pub();popChip('sThem');buzz(120);blip(220,.25,'sawtooth',.08);paintHud();
   if(gameOver())return endGame();
@@ -397,13 +409,14 @@ const onSphere=(px,py)=>[px,py,Math.sqrt(Math.max(0,1-px*px-py*py))];
 const turn=v=>[rot[0]*v[0]+rot[1]*v[1]+rot[2]*v[2],rot[3]*v[0]+rot[4]*v[1]+rot[5]*v[2],rot[6]*v[0]+rot[7]*v[1]+rot[8]*v[2]];
 function useSlot(i){
   const t=S.slots[i];if(!t)return;
+  if(S.mode==='party'){if(P.lives[P.me]<=0)return;if(!FX[t].self&&t!=='tron'){const opp=aliveOthers();if(!opp.length)return;if(opp.length===1)return fireAt(i,opp[0]);S.pick={slot:i,until:performance.now()+5000};blip(500,.06);return}}
   const now=performance.now(),f=FX[t],n=S.slotN[i]||1;S.slots[i]=null;S.slotN[i]=0;S.slotAt[i]=now;
   // a stack fires all at once: sticky/big ball go up levels, the rest last n times longer
   if(f.self){
     if(t==='sticky')S.stk=Math.min(2,(on('sticky',now)?S.stk||1:0)+n);
     if(t==='bigball')S.bbl=Math.min(3,(on('bigball',now)?S.bbl||1:0)+n);
     S.fx[t]=now+f.dur*(t==='sticky'||t==='bigball'?1:n);if(t==='big')S.fx.mini=0;pub()}
-  else if(f.both){S.fx[t]=now+f.dur*n;if(t==='portal')S.portals=makePortals();if(S.mode!=='solo'){S.zapN++;S.zapK=t;S.zapM=n;pub()}}   // TRON: lights out on both phones
+  else if(f.both){S.fx[t]=now+f.dur*n;if(t==='portal')S.portals=makePortals();if(S.mode==='party')psend({t:'zap',to:-1,k:t,n});else if(S.mode!=='solo'){S.zapN++;S.zapK=t;S.zapM=n;pub()}}   // TRON: lights out on both phones
   else if(S.mode==='solo')getZap(t,n);   // practice: no partner, so it lands on you
   else{S.zapN++;S.zapK=t;S.zapM=n;pub()}
   const p=slotPos(i);burst(p.x/W,p.y/W,f.self?'#ffd400':'#9d6bff',18,'star',1.2);S.shake=Math.max(S.shake,.3);
@@ -422,7 +435,9 @@ function step(now){
   const prevX=S.paddleX;
   S.paddleX+=(Math.min(1-half,Math.max(half,tx))-S.paddleX)*Math.min(1,dt*22);
   if(dt>0)S.padV+=((S.paddleX-prevX)/dt-S.padV)*.5;
-  if(S.serveAt&&now>=S.serveAt&&!S.ball&&(S.mode==='solo'||S.otherPeer)){S.serveAt=0;serve()}
+  if(S.serveAt&&now>=S.serveAt&&!S.ball&&(S.mode==='solo'||S.otherPeer||S.mode==='party')){S.serveAt=0;serve()}
+  if(P.incoming&&now>=P.incoming.at){const m=P.incoming.m;P.incoming=null;if(S.mode==='party'&&!P.over)receive({x:1-m.x,vx:-m.vx,vy:m.vy,r:m.r,s:m.s,w:m.warp})}
+  if(S.pick&&now>S.pick.until)S.pick=null;
   const b=S.ball;
   if(b&&b.stuck){
     // glued to the paddle until the finger lifts (or sticky runs out)
@@ -487,7 +502,7 @@ function step(now){
   for(const q of S.bananas)q.y+=q.vy*dt;
   S.bananas=S.bananas.filter(q=>now<q.until&&q.y<H+.1);
   // falling items: catch them with your paddle
-  const playing=(S.mode==='solo'||(S.mode==='online'&&S.otherPeer))&&!gameOver()&&$('endOv').hidden;
+  const playing=(S.mode==='solo'||(S.mode==='online'&&S.otherPeer)||(S.mode==='party'&&P.started&&P.lives[P.me]>0))&&!gameOver()&&$('endOv').hidden;
   if(playing&&!S.nextCookie)S.nextCookie=now+1500+Math.random()*1500;
   if(playing&&now>S.nextCookie&&S.cookies.length<3){
     const pool=['cookie','cookie','cookie','big','bigball','sticky','sticky','mini','smallball','round','drunk','reverse','banana','portal','portal','tron'];
@@ -673,15 +688,16 @@ function drawFxIcon(e,x,y,r,now,u,ring){
 function drawMult(now,u){
   const m=sharedMult();if(m<=1)return;
   if(m!==drawMult.last){drawMult.last=m;drawMult.at=now}
-  const p=backOut((now-(drawMult.at||0))/380),sc=.6+.4*p,y=Math.max(64,.16*u),R=.075*u;
+  const p=backOut((now-(drawMult.at||0))/380),sc=.6+.4*p,y=S.mode==='party'?.36*u:Math.max(64,.16*u),R=.075*u;
   ctx.save();ctx.translate(W/2,y);ctx.rotate(-.08+Math.sin(now/600)*.03);ctx.scale(sc,sc);
   ctx.fillStyle='#1d1230';ctx.beginPath();ctx.arc(3,5,R+5,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,R+5,0,7);ctx.fill();
   ctx.fillStyle='#ffd400';ctx.strokeStyle='#1d1230';ctx.lineWidth=3.5;ctx.beginPath();ctx.arc(0,0,R,0,7);ctx.fill();ctx.stroke();
   ctx.font=`${Math.round(R*.95)}px "Bungee", "Arial Black", system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.lineWidth=4;ctx.strokeStyle='#fff';ctx.strokeText('×'+m,0,2);ctx.fillStyle='#ff3d8b';ctx.fillText('×'+m,0,2);ctx.textBaseline='alphabetic';
+  ctx.lineWidth=4;ctx.strokeStyle='#fff';ctx.strokeText('\u00d7'+m,0,2);ctx.fillStyle='#ff3d8b';ctx.fillText('\u00d7'+m,0,2);ctx.textBaseline='alphabetic';
   ctx.restore();
 }
 function drawBoard(now,u){
+  if(S.mode==='party'){drawParty(now,u);return}
   drawMult(now,u);
   if(S.mode==='solo'){
     drawSide(u*.16,'you',myColor(),myStat(now),S.lost,fxList(k=>k==='banana'?bananaLeft(now):(S.fx[k]||0)-now),popAt.sMe,now,u,false);
@@ -858,6 +874,164 @@ function drawQR(code){
   try{const q=qrcode(0,'M');q.addData(location.origin+location.pathname+'#'+code);q.make();box.innerHTML=q.createSvgTag({cellSize:6,margin:0,scalable:true})}
   catch(e){box.hidden=true}
 }
+/* ---------- party ---------- */
+/* ---------- PARTY: 2\u20135 phones laid out as a polygon, tops facing the middle ---------- */
+const SEATC=['#ff3d8b','#12d4a3','#ffd400','#8a5cff','#ff8a3d'],LIVES=3,MAXP=5;
+const P={host:false,me:0,n:0,conns:{},seats:[],started:false,over:false,lives:[],st:[],mult:[],ballAt:-1,incoming:null};
+let pconn=null;   // a guest's link to the host
+function pReset(){Object.assign(P,{host:false,me:0,n:0,conns:{},seats:[],started:false,over:false,lives:[],st:[],mult:[],ballAt:-1,incoming:null})}
+// everything goes through the host: send to it (guest) or to everyone (host); always handle locally too
+function psend(m){m.from=P.me;pHandle(m);
+  if(P.host){for(const k in P.conns){const c=P.conns[k];if(c&&c.open)try{c.send(m)}catch(e){}}}
+  else if(pconn&&pconn.open)try{pconn.send(m)}catch(e){}}
+function pRelay(m,except){for(const k in P.conns){const c=P.conns[k];if(c&&c!==except&&c.open)try{c.send(m)}catch(e){}}}
+const aliveOthers=()=>{const r=[];for(let i=0;i<P.n;i++)if(i!==P.me&&P.lives[i]>0)r.push(i);return r};
+const aliveCount=()=>P.lives.filter(l=>l>0).length;
+function nextAlive(i){for(let k=1;k<=P.n;k++){const j=(i+k)%P.n;if(P.lives[j]>0)return j}return i}
+function partyMult(){let m=1;for(let i=0;i<P.n;i++)if(P.lives[i]>0)m+=(i===P.me?S.mult:(P.mult[i]||1))-1;return Math.min(9,m)}
+function partyStatus(){if(!P.started)return;psend({t:'st',seat:P.me,st:myStatus(),mult:S.mult})}
+function resetPlay(){S.lost=0;S.themLost=0;S.mult=1;S.themMult=1;S.cookies=[];S.fx={};S.bananas=[];S.rain={until:0,lvl:0,next:0};S.portals=null;S.parts=[];S.slots=[null,null];S.slotN=[0,0];S.ball=null;S.serveAt=0;S.nextCookie=0;S.pick=null;P.incoming=null}
+
+// geometry: regular n-gon of phone-width sides; side i has outward normal N and a "right" T (as its player sees it)
+const gApo=n=>n===2?.2:.5/Math.tan(Math.PI/n);
+const gN=(i,n)=>{const a=2*Math.PI*i/n-Math.PI/2;return [Math.cos(a),Math.sin(a)]};
+const gT=Nv=>[Nv[1],-Nv[0]];   // the player's right hand, seen from above with y pointing down
+function gRoute(i,x,vx,vy){
+  const n=P.n,a=gApo(n),Ni=gN(i,n),Ti=gT(Ni);
+  let p=[a*Ni[0]+(x-.5)*Ti[0],a*Ni[1]+(x-.5)*Ti[1]],v=[vx*Ti[0]+vy*Ni[0],vx*Ti[1]+vy*Ni[1]],T=0;
+  for(let bounce=0;bounce<8;bounce++){
+    let best=null;
+    for(let j=0;j<n;j++){const Nj=gN(j,n),dn=v[0]*Nj[0]+v[1]*Nj[1];if(dn<=1e-6)continue;
+      const t=(a-(p[0]*Nj[0]+p[1]*Nj[1]))/dn;if(t>1e-6&&(!best||t<best.t))best={j,t,Nj}}
+    if(!best)return null;
+    const h=[p[0]+v[0]*best.t,p[1]+v[1]*best.t];T+=best.t;
+    const j=best.j,Nj=best.Nj,Tj=gT(Nj);
+    if(P.lives[j]>0)return {to:j,x:clamp((h[0]-a*Nj[0])*Tj[0]+(h[1]-a*Nj[1])*Tj[1]+.5,.04,.96),vx:v[0]*Tj[0]+v[1]*Tj[1],vy:v[0]*Nj[0]+v[1]*Nj[1],T};
+    const dn=v[0]*Nj[0]+v[1]*Nj[1];v=[v[0]-2*dn*Nj[0],v[1]-2*dn*Nj[1]];p=h;   // knocked-out side: a wall
+  }
+  return null;
+}
+function partyOut(b,warp){
+  S.ball=null;
+  if(warp&&S.portalTo!=null&&P.lives[S.portalTo]>0){psend({t:'ball',to:S.portalTo,warp:1,x:b.x,vx:b.vx,vy:Math.abs(b.vy),r:b.r||0,s:b.spin||0,d:0});return}
+  const R=gRoute(P.me,b.x,b.vx,b.vy)||{to:nextAlive(P.me),x:1-b.x,vx:-b.vx,vy:Math.abs(b.vy),T:.6};
+  psend({t:'ball',to:R.to,x:R.x,vx:R.vx,vy:R.vy,r:b.r||0,s:b.spin||0,d:Math.round(clamp(R.T*1000,250,1600))});
+}
+function partyMiss(){psend({t:'miss',seat:P.me,lives:Math.max(0,(P.lives[P.me]||0)-1)})}
+function fireAt(i,target){
+  const t=S.slots[i];if(!t||P.lives[target]<=0)return;
+  const now=performance.now(),f=FX[t],n=S.slotN[i]||1;S.slots[i]=null;S.slotN[i]=0;S.slotAt[i]=now;
+  if(t==='portal'){S.fx.portal=now+f.dur*n;S.portals=makePortals();S.portalTo=target}
+  psend({t:'zap',to:target,k:t,n});
+  const p=slotPos(i);burst(p.x/W,p.y/W,SEATC[target],18,'star',1.2);S.shake=Math.max(S.shake,.3);
+  buzz([15,25,15]);blip(660,.08,'square',.08);setTimeout(()=>blip(990,.1,'square',.08),70);
+  flash(FX[t].label+' \u2192 P'+(target+1),1300);
+}
+// target picker: one sticker button per opponent, above the paddle
+function pickPos(k,count){const r=Math.min(30,W*.075),gap=r*2+14,x0=W/2-(count-1)*gap/2;return {x:x0+k*gap,y:PY()*W-.17*W,r}}
+function pickHit(x,y){const o=aliveOthers();for(let k=0;k<o.length;k++){const p=pickPos(k,o.length);if(Math.hypot(x-p.x,y-p.y)<p.r+8)return o[k]}return -1}
+function drawPick(now,u){if(!S.pick)return;const o=aliveOthers();
+  ctx.save();ctx.font=`${Math.round(.035*u)}px "Bungee", "Arial Black", system-ui`;ctx.textAlign='center';ctx.lineWidth=5;ctx.strokeStyle='#fff';ctx.fillStyle='#1d1230';
+  const p0=pickPos(0,o.length);ctx.strokeText('Who?',W/2,p0.y-p0.r-14);ctx.fillText('Who?',W/2,p0.y-p0.r-14);
+  o.forEach((seat,k)=>{const p=pickPos(k,o.length),bob=Math.sin(now/200+k)*2;
+    ctx.fillStyle='#1d1230';ctx.beginPath();ctx.arc(p.x+2,p.y+4+bob,p.r+4,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(p.x,p.y+bob,p.r+4,0,7);ctx.fill();
+    ctx.fillStyle=SEATC[seat];ctx.strokeStyle='#1d1230';ctx.lineWidth=3;ctx.beginPath();ctx.arc(p.x,p.y+bob,p.r,0,7);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#1d1230';ctx.font=`${Math.round(p.r*.7)}px "Bungee", "Arial Black", system-ui`;ctx.textBaseline='middle';ctx.fillText('P'+(seat+1),p.x,p.y+bob+1);ctx.textBaseline='alphabetic'});
+  ctx.restore()}
+// scoreboard: every seat in a row, with its paddle, lives and a ball marker for whoever has the ball
+function drawParty(now,u){
+  drawMult(now,u);drawPick(now,u);
+  const n=P.n,top=Math.max(46,.11*u);
+  for(let i=0;i<n;i++){const cx=u*(i+.5)/n,dead=P.lives[i]<=0,me=i===P.me;
+    ctx.save();ctx.globalAlpha=dead?.35:me?1:.85;ctx.textAlign='center';ctx.fillStyle='#1d1230';
+    ctx.font=`${Math.round(.026*u)}px "Bungee", "Arial Black", system-ui`;ctx.fillText(me?'YOU':'P'+(i+1),cx,top-.03*u);
+    const st=me?myStat(now):(()=>{const q=P.st[i]||{fx:{}};return {on:k=>now<((q.fx||{})[k]||0),stk:q.stk||1,bbl:q.bbl||1,mult:1,banana:now<(q.banana||0)}})();
+    drawPaddle(cx,top,.22,st,SEATC[i],now,u,0);
+    for(let l=0;l<LIVES;l++){const lx=cx+(l-1)*.03*u,ly=top+.055*u;ctx.fillStyle=l<P.lives[i]?'#1d1230':'rgba(29,18,48,.18)';ctx.beginPath();ctx.arc(lx,ly,.009*u,0,7);ctx.fill()}
+    if(dead){ctx.globalAlpha=1;ctx.fillStyle='#ff3d8b';ctx.font=`${Math.round(.03*u)}px "Bungee", "Arial Black", system-ui`;ctx.fillText('OUT',cx,top+.1*u)}
+    if(P.ballAt===i&&!dead){const by=top+.1*u+Math.sin(now/150)*3,r=.012*u;ctx.globalAlpha=1;ctx.fillStyle='#1d1230';ctx.beginPath();ctx.arc(cx,by,r+3,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(cx,by,r+1,0,7);ctx.fill()}
+    ctx.restore()}
+}
+// the lay-out drawing: the polygon of phones, tops facing the middle
+function drawDiagram(n,me){
+  if(n<2){$('diagram').innerHTML='';return}
+  const a=gApo(n),D=.62,sc=60;let svg=`<svg viewBox="-110 -110 220 220">`;
+  for(let i=0;i<n;i++){const N=gN(i,n),T=gT(N),c=(x,y)=>`${((a+y)*N[0]+x*T[0])*sc},${((a+y)*N[1]+x*T[1])*sc}`;
+    svg+=`<polygon points="${c(-.48,0)} ${c(.48,0)} ${c(.48,D)} ${c(-.48,D)}" fill="${SEATC[i]}" stroke="#1d1230" stroke-width="${i===me?5:3}" stroke-linejoin="round"/>`;
+    const m=c(0,D*.55).split(',');svg+=`<text x="${m[0]}" y="${m[1]}" font-family="Bungee, Arial Black, sans-serif" font-size="15" text-anchor="middle" dominant-baseline="middle" fill="#1d1230">${i===me?'YOU':'P'+(i+1)}</text>`;
+    const tp=c(0,.06).split(',');svg+=`<circle cx="${tp[0]}" cy="${tp[1]}" r="3" fill="#1d1230"/>`}
+  $('diagram').innerHTML=svg+'</svg>'}
+function classicWaitUI(){$('waitTitle').textContent='Waiting for player 2';$('waitText').textContent='Let your partner scan this, or tell them the code:';$('waitHelp').hidden=false;$('qr').hidden=false;$('codeOut').hidden=false;$('partyBox').hidden=true}
+function pWaitUI(){
+  const n=P.seats.length||P.n;$('partyBox').hidden=false;
+  $('waitTitle').textContent=P.host?'Party table':'You are P'+(P.me+1);
+  $('waitText').textContent=P.host?'Everyone scans this, or types the code:':'Lay the phones like this, tops to the middle. Waiting for the host to start.';
+  $('qr').hidden=!P.host;$('codeOut').hidden=!P.host;$('waitHelp').hidden=true;
+  $('rosterTxt').textContent=n+' phone'+(n===1?'':'s')+' in'+(P.host?' \u00b7 lay them like this, dots = tops':'');
+  $('btnGo').hidden=!P.host;$('btnGo').disabled=n<2;$('btnGo').textContent=n<2?'Waiting for players':'Start with '+n;
+  drawDiagram(n,P.me)}
+function enterParty(code){
+  showErr('');if(!window.Peer){showErr('Could not load the connection library. Check your internet and reload.');return}
+  try{peer&&peer.destroy()}catch(e){}
+  pReset();resetPlay();P.host=true;P.me=0;P.seats=[{id:'host'}];P.n=1;S.code=code;S.role='a';
+  peer=new Peer('phonepong-'+code.toLowerCase());
+  peer.on('open',()=>{S.mode='party';$('lobby').hidden=true;$('topHint').hidden=true;$('codeOut').textContent=code;drawQR(code);pWaitUI();$('waiting').hidden=false});
+  peer.on('connection',c=>{
+    c.on('open',()=>{if(P.started||P.seats.length>=MAXP){try{c.send({t:'full'})}catch(e){}setTimeout(()=>{try{c.close()}catch(e){}},400);return}
+      const seat=P.seats.length;P.seats.push({c});P.conns[seat]=c;c._seat=seat;P.n=P.seats.length;
+      try{c.send({t:'welcome',seat,v:VER})}catch(e){}pRelay({t:'roster',n:P.n});pWaitUI();buzz(30);blip(660,.15)});
+    c.on('data',d=>{if(d&&typeof d==='object'&&d.t&&c._seat!=null){d.from=c._seat;pHandle(d);pRelay(d,c)}});
+    c.on('close',()=>pLeft(c._seat))});
+  peer.on('error',e=>{const t=e&&e.type;if(t==='unavailable-id'){enterParty(newCode());return}leave();showErr('Could not start the table. Check your internet and try again.')});
+}
+function pLeft(seat){
+  if(seat==null)return;
+  if(!P.started){   // renumber everyone who is still here
+    P.seats.splice(seat,1);const cs={};P.seats.forEach((sObj,i)=>{if(i>0){cs[i]=sObj.c;sObj.c._seat=i;try{sObj.c.send({t:'welcome',seat:i,v:VER})}catch(e){}}});
+    P.conns=cs;P.n=P.seats.length;pRelay({t:'roster',n:P.n});pWaitUI();return}
+  delete P.conns[seat];if(P.lives[seat]>0)psend({t:'miss',seat,lives:0,left:1});
+}
+function partyStart(){if(!P.host||P.seats.length<2)return;psend({t:'start',n:P.seats.length})}
+// guest side: messages from the host
+function pGuest(d,c){
+  if(d.t==='full'){showErr('That table is full or already playing.');leave();return}
+  if(d.t==='welcome'){S.mode='party';P.host=false;P.me=d.seat;pconn=c;conn=null;
+    if(d.v!==VER)setTimeout(()=>flash(d.v>VER?'reload me \u21bb':'host: please reload \u21bb',3500),1500);
+    $('lobby').hidden=true;$('topHint').hidden=true;$('waiting').hidden=false;pWaitUI();return}
+  pHandle(d);
+}
+function pHandle(m){
+  const now=performance.now();
+  if(m.t==='roster'){P.n=m.n;if(!P.started)pWaitUI();return}
+  if(m.t==='start'){
+    P.n=m.n;P.started=true;P.over=false;P.lives=Array(P.n).fill(LIVES);P.mult=Array(P.n).fill(1);P.st=[];P.ballAt=0;resetPlay();
+    $('waiting').hidden=true;$('endOv').hidden=true;$('btnRematch').hidden=!P.host;
+    flash('You are P'+(P.me+1),1800);if(P.me===0){S.serveAt=now+2600;setTimeout(()=>flash('3 \u00b7 2 \u00b7 1',1000),1200)}
+    return}
+  if(!P.started)return;
+  if(m.t==='st'){if(m.seat===P.me)return;
+    const q={fx:{}};if(m.st&&m.st.fx)for(const k in m.st.fx)if(FX[k])q.fx[k]=now+Math.min(40000,Math.max(0,+m.st.fx[k]||0));
+    q.stk=clamp(+((m.st||{}).stk)||1,1,2);q.bbl=clamp(+((m.st||{}).bbl)||1,1,3);q.banana=now+Math.min(40000,Math.max(0,+((m.st||{}).banana)||0));P.st[m.seat]=q;
+    const mm=clamp(+m.mult||1,1,9);if(mm!==P.mult[m.seat]){P.mult[m.seat]=mm;rescaleBall()}return}
+  if(m.t==='ball'){P.ballAt=m.to;if(m.to===P.me)P.incoming={at:now+(+m.d||0),m};return}
+  if(m.t==='zap'){if(m.to===P.me||(m.to===-1&&m.from!==P.me)){if(P.lives[P.me]>0)getZap(m.k,clamp(+m.n||1,1,3))}return}
+  if(m.t==='miss'){
+    P.lives[m.seat]=m.lives;P.ballAt=-1;S.mult=1;P.mult=P.mult.map(()=>1);S.shake=Math.max(S.shake,.6);
+    if(m.seat===P.me){S.ball=null;flash(m.lives>0?'Missed \u00b7 '+m.lives+' left':'OUT',1600);buzz(150);blip(200,.3,'sawtooth',.08);
+      if(m.lives<=0){S.slots=[null,null];S.slotN=[0,0];S.cookies=[];S.fx={}}}
+    else flash(m.left?'P'+(m.seat+1)+' left':m.lives>0?'P'+(m.seat+1)+' missed':'P'+(m.seat+1)+' is OUT',1400);
+    if(aliveCount()<=1){pOver();return}
+    const server=m.lives>0?m.seat:nextAlive(m.seat);if(server===P.me)S.serveAt=now+1600;
+    return}
+}
+function pOver(){
+  P.over=true;S.ball=null;S.serveAt=0;P.incoming=null;S.pick=null;
+  const w=P.lives.findIndex(l=>l>0);
+  $('endBig').textContent=w===P.me?'You win!':w>=0?'P'+(w+1)+' wins':'Draw';
+  $('endTxt').textContent=w===P.me?'Last one standing.':P.host?'Play again?':'Waiting for the host to start a new round.';
+  $('btnRematch').hidden=!P.host;$('endOv').hidden=false;
+}
+
 /* ---------- QR scanner (works inside the home-screen app too) ---------- */
 let scanStream=null,scanOn=false;
 function loadJsQR(){return window.jsQR?Promise.resolve():new Promise((ok,no)=>{const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';sc.onload=ok;sc.onerror=no;document.head.appendChild(sc)})}
@@ -885,17 +1059,19 @@ $('btnJoin').onclick=()=>{audio();const c=$('codeIn').value.trim().toUpperCase()
 $('btnScan').onclick=()=>{audio();startScan()};
 $('btnScanCancel').onclick=stopScan;
 $('codeIn').addEventListener('keydown',e=>{if(e.key==='Enter')$('btnJoin').click()});
+$('btnParty').onclick=()=>{audio();enterParty(newCode())};
+$('btnGo').onclick=()=>{audio();partyStart()};
 $('btnSolo').onclick=()=>{audio();S.mode='solo';S.lost=0;$('lobby').hidden=true;$('topHint').hidden=true;S.mult=1;paintHud();flash('Practice',1200);S.serveAt=performance.now()+900};
-function leave(){try{conn&&conn.close()}catch(e){}try{peer&&peer.destroy()}catch(e){}conn=null;peer=null;S.mode='lobby';S.ball=null;S.serveAt=0;S.otherPeer=null;
+function leave(){try{pconn&&pconn.close()}catch(e){}for(const k in P.conns)try{P.conns[k].close()}catch(e){}pconn=null;pReset();S.pick=null;$('partyBox').hidden=true;$('btnRematch').hidden=false;try{conn&&conn.close()}catch(e){}try{peer&&peer.destroy()}catch(e){}conn=null;peer=null;S.mode='lobby';S.ball=null;S.serveAt=0;S.otherPeer=null;
   $('waiting').hidden=true;$('endOv').hidden=true;$('hud').hidden=true;$('topHint').hidden=true;$('lobby').hidden=false}
 $('btnBack').onclick=leave;$('btnLeave').onclick=leave;
-$('btnRematch').onclick=()=>{audio();newGame(Math.max(S.game,S.otherGame)+1,true);maybeFirstServe();if(S.role!=='a')flash('waiting for serve\u2026',2500)};
+$('btnRematch').onclick=()=>{audio();if(S.mode==='party'){if(P.host)partyStart();return}newGame(Math.max(S.game,S.otherGame)+1,true);maybeFirstServe();if(S.role!=='a')flash('waiting for serve\u2026',2500)};
 
 // keep the screen awake while playing
 (async()=>{try{await navigator.wakeLock?.request('screen')}catch(e){}})();
 const hc=(location.hash||'').slice(1).toUpperCase();
 if(/^[A-Z]{4}$/.test(hc)){$('codeIn').value=hc;try{history.replaceState(null,'',location.pathname)}catch(e){}addEventListener('load',()=>enter(hc,'b'))}
-setInterval(()=>{if(S.mode==='online'&&conn&&conn.open)pub()},1000);   // keep her view of my status fresh
+setInterval(()=>{if(S.mode==='online'&&conn&&conn.open)pub();if(S.mode==='party'&&P.started)partyStatus()},1000);   // keep her view of my status fresh
 requestAnimationFrame(step);
 })();
 </script>
