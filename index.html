@@ -84,7 +84,7 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
     </div>
     <p class="err" id="err" hidden></p>
     <button class="ghost" id="btnSolo">Practice alone</button>
-    <p class="small" id="ver">v22</p>
+    <p class="small" id="ver">v23</p>
   </div>
 </div>
 
@@ -133,7 +133,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=22;   // also shown on the start screen
+const VER=23;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -450,7 +450,7 @@ function collectFx(k){
   burst(k.x,k.y,col,16,k.t==='cookie'?'heart':'star',1.1);burst(k.x,k.y,'#fff',8,'dot',.8);
   S.parts.push({x:k.x,y:k.y,vx:0,vy:0,g:0,life:.35,max:.35,col,kind:'ring',sz:CR});
 }
-function popChip(id){const c=$(id).parentElement;c.classList.remove('pop');void c.offsetWidth;c.classList.add('pop')}
+const popAt={sMe:0,sThem:0};function popChip(id){popAt[id]=performance.now()}
 const backOut=t=>{const c=1.9;t=Math.min(1,Math.max(0,t))-1;return 1+(c+1)*t*t*t+c*t*t};
 function drawParts(u){
   for(const p of S.parts){const a=Math.min(1,p.life/(p.max*.6)),x=p.x*u,y=p.y*u,r=p.sz*u;ctx.globalAlpha=a;
@@ -537,7 +537,7 @@ function draw(now){
       ctx.fillStyle='#5b3a4a';ctx.fillText(t.txt,x0+ws[i]/2,ty+1);x0+=ws[i]+gap});
     ctx.textBaseline='alphabetic';
   }
-  if(S.mode==='online'&&S.otherPeer)drawThem(now,u);
+  if(S.mode!=='lobby')drawBoard(now,u);
   // message
   if(now<S.msgUntil&&S.msg){ctx.font=`${Math.round(.07*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';ctx.fillStyle='#5b3a4a';ctx.globalAlpha=Math.min(1,(S.msgUntil-now)/300);
     const age=now-(S.msgAt||0),sc=backOut(age/280),wob=Math.sin(age/60)*Math.max(0,1-age/400)*.08;
@@ -546,15 +546,38 @@ function draw(now){
 }
 
 // a little card in the corner showing her paddle as it is right now, plus her timers
-function drawThem(now,u){
-  const cx=u*.86,top=64;
-  ctx.save();ctx.globalAlpha=.7;
-  ctx.font=`${Math.round(.024*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';ctx.fillStyle='#5b3a4a';ctx.fillText('them',cx,top-.035*u);
-  drawPaddle(cx,top,.32,themStat(now),theirColor(),now,u,0);
-  let best=null;for(const k in FX){const t=k==='banana'?them.banana-now:(them.fx[k]||0)-now;if(t>0&&(!best||t<best.t))best={k,t}}
-  if(best){const f=FX[best.k];ctx.fillStyle=f.self?'#a8781a':'#7a52c7';ctx.font=`${Math.round(.022*u)}px "Mochiy Pop One", system-ui`;
-    ctx.fillText((best.k==='sticky'&&them.stk>1?'SUPER STICKY':best.k==='banana'&&them.rain?'BANANA RAIN':f.label)+' '+Math.ceil(best.t/1000),cx,top+.06*u)}
+// scoreboard: player 1 (started the table, pink) on the left, player 2 (mint) on the right, on both phones
+function activeFx(get,stk,rain,now){let best=null;
+  for(const k in FX){const t=get(k);if(t>0&&(!best||t<best.t))best={k,t}}
+  if(!best)return null;const f=FX[best.k];
+  return {txt:(best.k==='sticky'&&stk>1?'SUPER STICKY':best.k==='banana'&&rain?'BANANA RAIN':f.label)+' '+Math.ceil(best.t/1000),self:f.self}}
+function drawSide(cx,who,col,stat,score,mult,fxi,popT,now,u,dim){
+  const top=Math.max(48,.12*u);ctx.save();if(dim)ctx.globalAlpha=.75;
+  ctx.textAlign='center';ctx.fillStyle='#5b3a4a';
+  ctx.font=`${Math.round(.026*u)}px "Mochiy Pop One", system-ui`;ctx.globalAlpha=dim?.5:.7;ctx.fillText(who,cx,top-.03*u);ctx.globalAlpha=dim?.75:1;
+  if(stat)drawPaddle(cx,top,.3,stat,col,now,u,0);
+  // score, with a little pop when it changes
+  const p=backOut((now-popT)/320),sc=popT&&now-popT<320?1+.35*(1-p)+(p-1)*.2:1;
+  ctx.save();ctx.translate(cx,top+.085*u);ctx.scale(sc,sc);
+  ctx.font=`${Math.round(.065*u)}px "Mochiy Pop One", system-ui`;ctx.lineWidth=5;ctx.strokeStyle='#fffdfb';ctx.lineJoin='round';
+  ctx.strokeText(String(score),0,0);ctx.fillStyle=col==='#ffd86e'?'#a8781a':'#5b3a4a';ctx.fillText(String(score),0,0);ctx.restore();
+  // multiplier pill
+  if(mult>1){const tx='\u00d7'+mult,w=.075*u,h=.04*u,x=cx+.07*u,y=top+.055*u;
+    ctx.fillStyle='#ffd86e';ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(x,y,w,h,h/2);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#5b3a4a';ctx.font=`${Math.round(.026*u)}px "Mochiy Pop One", system-ui`;ctx.textBaseline='middle';ctx.fillText(tx,x+w/2,y+h/2+1);ctx.textBaseline='alphabetic'}
+  if(fxi){ctx.font=`${Math.round(.022*u)}px "Mochiy Pop One", system-ui`;ctx.fillStyle=fxi.self?'#a8781a':'#7a52c7';ctx.fillText(fxi.txt,cx,top+.125*u)}
   ctx.restore();
+}
+function drawBoard(now,u){
+  if(S.mode==='solo'){
+    drawSide(u*.16,'you',myColor(),myStat(now),S.lost,S.mult,activeFx(k=>k==='banana'?bananaLeft(now):(S.fx[k]||0)-now,S.stk,raining(now),now),popAt.sMe,now,u,false);
+    drawSide(u*.84,'best','#ffd86e',null,best,1,null,0,now,u,true);return}
+  const me={who:'you',col:myColor(),stat:myStat(now),score:S.themLost,mult:S.mult,pop:popAt.sMe,
+    fx:activeFx(k=>k==='banana'?bananaLeft(now):(S.fx[k]||0)-now,S.stk,raining(now),now)};
+  const her={who:'them',col:theirColor(),stat:S.otherPeer?themStat(now):null,score:S.lost,mult:S.themMult,pop:popAt.sThem,
+    fx:S.otherPeer?activeFx(k=>k==='banana'?them.banana-now:(them.fx[k]||0)-now,them.stk,them.rain,now):null};
+  const [L,R]=S.role==='a'?[me,her]:[her,me];
+  for(const [cx,P] of [[u*.16,L],[u*.84,R]])drawSide(cx,P.who,P.col,P.stat,P.score,P.mult,P.fx,P.pop,now,u,P===her);
 }
 const myStat=now=>({on:k=>on(k,now),stk:S.stk||1,bbl:S.bbl||1,mult:S.mult,banana:S.bananas.length>0||raining(now)});
 const themStat=now=>({on:k=>now<(them.fx[k]||0),stk:them.stk,bbl:them.bbl,mult:S.themMult,banana:now<them.banana});
@@ -686,10 +709,10 @@ function soloPoint(){S.lost+=S.mult;if(S.lost>best){best=S.lost;try{localStorage
 function paintHud(){
   if(S.mode==='solo'){   // practice: your points this rally, and your best ever on this phone
     $('sMe').textContent='points '+S.lost;$('sThem').textContent='best '+best;$('mMe').textContent=S.mult>1?'\u00d7'+S.mult:'';$('mThem').textContent='';
-    $('meDot').style.background=myColor();$('themDot').style.background='#ffd86e';$('hud').hidden=false;return}
+    $('hud').hidden=true;return}
   $('sMe').textContent=S.themLost;$('sThem').textContent=S.lost;$('mMe').textContent=S.mult>1?'\u00d7'+S.mult:'';$('mThem').textContent=S.themMult>1?'\u00d7'+S.themMult:'';
   $('meDot').style.background=myColor();$('themDot').style.background=theirColor();
-  $('hud').hidden=S.mode!=='online';
+  $('hud').hidden=true;
 }
 
 function drawQR(code){
