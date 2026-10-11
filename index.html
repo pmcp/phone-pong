@@ -25,11 +25,11 @@
 [hidden]{display:none!important}
 html,body{height:100%;margin:0;overflow:hidden;background:var(--sky);color:var(--ink);font-family:var(--body);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
 #c{position:fixed;inset:0;width:100%;height:100%;touch-action:none;display:block}
-.hud{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);display:flex;justify-content:center;gap:10px;pointer-events:none;font-family:var(--display)}
+.hud{position:fixed;left:12px;top:calc(env(safe-area-inset-top,0px) + 26px);display:flex;flex-direction:column;align-items:flex-start;gap:6px;pointer-events:none;font-family:var(--display)}
 .chip.pop{animation:pop .35s cubic-bezier(.3,1.8,.5,1)}
 @keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.35)}100%{transform:scale(1)}}
 @media (prefers-reduced-motion:reduce){.chip.pop{animation:none}}
-.chip{background:var(--card);border:3px solid var(--line);border-radius:999px;padding:4px 14px;font-size:20px;display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums;box-shadow:0 3px 0 var(--line)}
+.chip{background:var(--card);border:3px solid var(--line);border-radius:999px;padding:2px 12px;font-size:17px;display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums;box-shadow:0 3px 0 var(--line)}
 .dot{width:12px;height:12px;border-radius:50%}
 .top{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 8px);text-align:center;font-family:var(--display);font-size:13px;letter-spacing:.08em;opacity:.55;pointer-events:none}
 .ov{position:fixed;inset:0;display:grid;place-items:center;padding:16px;background:rgba(255,238,244,.82);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
@@ -84,7 +84,7 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
     </div>
     <p class="err" id="err" hidden></p>
     <button class="ghost" id="btnSolo">Practice alone</button>
-    <p class="small" id="ver">v20</p>
+    <p class="small" id="ver">v21</p>
   </div>
 </div>
 
@@ -122,7 +122,8 @@ const WIN=11, PINK='#ff8fb1', MINT='#7fd8c3';
 const $=id=>document.getElementById(id);
 const cv=$('c'), ctx=cv.getContext('2d');
 let W=0,Hpx=0,dpr=1,H=1.6; // H = half-court length in width units
-function resize(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;Hpx=innerHeight;cv.width=W*dpr;cv.height=Hpx*dpr;H=Hpx/W}
+let SB=0;   // bottom safe-area in px
+function resize(){SB=($('safeProbe')&&$('safeProbe').offsetHeight)||0;dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;Hpx=innerHeight;cv.width=W*dpr;cv.height=Hpx*dpr;H=Hpx/W}
 addEventListener('resize',resize);resize();
 
 /* ---------- audio ---------- */
@@ -132,7 +133,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=20;   // also shown on the start screen
+const VER=21;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -146,7 +147,7 @@ const raining=now=>now<S.rain.until;
 const slotCap=t=>t==='sticky'?2:3;   // how many of one kind a slot can stack
 const HOLD=2500;   // ms you may keep the ball stuck to your paddle
 const Z=.78;   // zoom: everything on the table is drawn this much smaller, giving more room
-const PW=.3*Z, PY=()=>H-.2, BR=.04*Z, CR=.05*Z;
+const PW=.3*Z, PY=()=>Math.min(H-.2,(Hpx-SB-12-2*Math.min(34,W*.085)-18)/W-.055*Z), BR=.04*Z, CR=.05*Z;
 // power-ups: self = helps you; the rest are thrown across the net at your partner
 const FX={
   big:    {dur:10000,self:1,label:'BIG',     take:'\u3067\u304b\u3044! big paddle'},
@@ -174,7 +175,7 @@ const myColor=()=>S.role==='a'?PINK:MINT, theirColor=()=>S.role==='a'?MINT:PINK;
 /* ---------- input ---------- */
 function pt(e){const t=e.touches?e.touches[0]:e;return t.clientX/W}
 // item slots (Mario Kart style): two buttons in the bottom corners
-function slotPos(i){const sb=$('safeProbe').offsetHeight||0,r=Math.min(34,W*.085);return {x:i?W-16-r:16+r,y:Hpx-sb-12-r,r}}
+function slotPos(i){const sb=SB,r=Math.min(34,W*.085);return {x:i?W-16-r:16+r,y:Hpx-sb-12-r,r}}
 function slotHit(x,y){for(let i=0;i<2;i++){const p=slotPos(i);if(Math.hypot(x-p.x,y-p.y)<p.r+8)return i}return -1}
 cv.addEventListener('pointerdown',e=>{audio();
   const hit=S.mode!=='lobby'?slotHit(e.clientX,e.clientY):-1;
@@ -572,10 +573,6 @@ function drawPaddle(cx,top,sc,st,col,now,u,sq){
   if(drunk)for(let i=0;i<6;i++){const ph=(now/1300+i/6)%1,bx=Math.sin(i*2.3+now/600)*hw*.8,by=t-ph*.13*U,br=(.006+.004*(i%3))*U*(.6+ph);
     ctx.globalAlpha=1-ph;ctx.fillStyle='rgba(255,255,255,.8)';ctx.strokeStyle='#b07ad6';ctx.lineWidth=Math.max(1,1.5*sc*2);ctx.beginPath();ctx.arc(bx,by,br,0,7);ctx.fill();ctx.stroke()}
   ctx.globalAlpha=1;
-  // cookies held: cat ears
-  if(st.mult>1){ctx.fillStyle=col;ctx.strokeStyle=ink;ctx.lineWidth=2*Math.max(.6,sc);
-    for(const d of[-1,1]){const ex=d*Math.min(hw*.55,.06*U);ctx.beginPath();ctx.moveTo(ex-.02*U,t+.01*U);ctx.lineTo(ex,t-.028*U);ctx.lineTo(ex+.02*U,t+.01*U);ctx.closePath();ctx.fill();ctx.stroke();
-      ctx.fillStyle='#ffd0dc';ctx.beginPath();ctx.moveTo(ex-.009*U,t+.004*U);ctx.lineTo(ex,t-.016*U);ctx.lineTo(ex+.009*U,t+.004*U);ctx.fill();ctx.fillStyle=col}}
   // sticky: goo drips underneath
   if(st.on('sticky')){const n=st.stk>1?5:3;ctx.fillStyle='#c9a2ff';ctx.strokeStyle=ink;ctx.lineWidth=1.5*Math.max(.6,sc);
     for(let i=0;i<n;i++){const dx=(n===1?0:(i/(n-1)-.5))*hw*1.4,L=(.012+.008*Math.sin(now/380+i*1.7))*U*(st.stk>1?1.7:1),r=.007*U;
@@ -592,7 +589,6 @@ function drawPaddle(cx,top,sc,st,col,now,u,sq){
   else if(st.on('reverse')){for(const d of[-1,1]){ctx.beginPath();ctx.arc(d*ex-d*fs*.06,fy-fs*.05,fs*.1,0,7);ctx.fill()}}
   else{for(const d of[-1,1]){ctx.beginPath();ctx.arc(d*ex,fy-fs*.05,fs*.1,0,7);ctx.fill()}}
   ctx.beginPath();if(mini||st.on('round'))ctx.arc(0,fy+fs*.12,fs*.09,0,7);else ctx.arc(0,fy+fs*.05,fs*.13,.2,Math.PI-.2);ctx.stroke();
-  if(st.mult>1){ctx.fillStyle='rgba(255,143,177,.65)';for(const d of[-1,1]){ctx.beginPath();ctx.ellipse(d*(ex+fs*.22),fy+fs*.1,fs*.12,fs*.07,0,0,7);ctx.fill()}}
   // swapped controls: arrows over the paddle
   if(st.on('reverse')){const ay=t-.022*U,aw=.04*U,hl=.01*U;ctx.strokeStyle=ink;ctx.lineWidth=Math.max(1,2*sc);ctx.beginPath();
     ctx.moveTo(-aw,ay-hl);ctx.lineTo(aw,ay-hl);ctx.lineTo(aw-hl,ay-hl*2);ctx.moveTo(aw,ay+hl);ctx.lineTo(-aw,ay+hl);ctx.lineTo(-aw+hl,ay+hl*2);ctx.stroke()}
@@ -602,9 +598,6 @@ function drawPaddle(cx,top,sc,st,col,now,u,sq){
     ctx.fillStyle='#fff';ctx.strokeStyle=ink;ctx.lineWidth=Math.max(1,1.8*sc);ctx.beginPath();ctx.arc(bx,by,Math.max(2,br),0,7);ctx.fill();ctx.stroke();ctx.globalAlpha=1}
   // banana on this half: a sticker on the paddle
   if(st.banana)drawBanana(hw*.72,fy,.014*U,.3);
-  // cookie multiplier badge
-  if(st.mult>1){const bx=hw+.012*U,by=t-.004*U,rr=.018*U;ctx.fillStyle='#ffd86e';ctx.strokeStyle=ink;ctx.lineWidth=Math.max(1,1.8*sc);ctx.beginPath();ctx.arc(bx,by,rr,0,7);ctx.fill();ctx.stroke();
-    ctx.fillStyle=ink;ctx.font=`${Math.max(8,Math.round(.022*U))}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('\u00d7'+st.mult,bx,by+1);ctx.textBaseline='alphabetic'}
   ctx.restore();
 }
 function drawSlots(now,u){
