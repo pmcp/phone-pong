@@ -84,7 +84,7 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
     </div>
     <p class="err" id="err" hidden></p>
     <button class="ghost" id="btnSolo">Practice alone</button>
-    <p class="small" id="ver">v18</p>
+    <p class="small" id="ver">v19</p>
   </div>
 </div>
 
@@ -132,14 +132,15 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=18;   // also shown on the start screen
+const VER=19;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
-  mult:1,themMult:1,cookies:[],fx:{},banana:null,zapN:0,zapK:'',seenZap:0,nextCookie:0,slots:[null,null],slotAt:[0,0],padPtr:null,ball:null,paddleX:.5,targetX:.5,padV:0,touching:false,parts:[],shake:0,bbl:1,stk:1,serveAt:0,msg:'',msgUntil:0,trail:[]};
+  mult:1,themMult:1,cookies:[],fx:{},banana:null,zapN:0,zapK:'',seenZap:0,nextCookie:0,slots:[null,null],slotN:[0,0],slotAt:[0,0],padPtr:null,ball:null,paddleX:.5,targetX:.5,padV:0,touching:false,parts:[],shake:0,bbl:1,stk:1,serveAt:0,msg:'',msgUntil:0,trail:[]};
 // every multiplier on the table (yours and hers) speeds the ball up on both halves, until someone loses the ball
 const hitSpeed=()=>Math.min(2.7,1.0*(1+.45*((S.mult-1)+(S.themMult-1))));
 function rescaleBall(){const b=S.ball;if(!b)return;const sp=Math.hypot(b.vx,b.vy)||1,k=hitSpeed()/sp;b.vx*=k;b.vy*=k}
+const slotCap=t=>t==='sticky'?2:3;   // how many of one kind a slot can stack
 const HOLD=2500;   // ms you may keep the ball stuck to your paddle
 const Z=.78;   // zoom: everything on the table is drawn this much smaller, giving more room
 const PW=.3*Z, PY=()=>H-.2, BR=.04*Z, CR=.05*Z;
@@ -182,7 +183,7 @@ cv.addEventListener('pointermove',e=>{if(S.padPtr===null||e.pointerId===S.padPtr
 /* ---------- direct phone-to-phone link (PeerJS / WebRTC) ---------- */
 let peer=null, conn=null;
 function showErr(t){$('err').textContent=t;$('err').hidden=!t}
-function pub(){if(conn&&conn.open){try{conn.send({role:S.role,game:S.game,lost:S.lost,mult:S.mult,out:{n:S.outN,x:S.outX||0,vx:S.outVx||0,vy:S.outVy||0,r:S.outR||0,s:S.outS||0},zap:{n:S.zapN,k:S.zapK},st:myStatus(),v:VER})}catch(e){}}}
+function pub(){if(conn&&conn.open){try{conn.send({role:S.role,game:S.game,lost:S.lost,mult:S.mult,out:{n:S.outN,x:S.outX||0,vx:S.outVx||0,vy:S.outVy||0,r:S.outR||0,s:S.outS||0},zap:{n:S.zapN,k:S.zapK,m:S.zapM||1},st:myStatus(),v:VER})}catch(e){}}}
 
 function myStatus(){
   const now=performance.now(),fx={};
@@ -199,7 +200,7 @@ function enter(code,role){
   showErr('');
   if(!window.Peer){showErr('Could not load the connection library. Check your internet and reload.');return}
   try{peer&&peer.destroy()}catch(e){}
-  S.code=code;S.role=role;S.game=1;S.lost=0;S.themLost=0;S.mult=1;S.themMult=1;S.cookies=[];S.fx={};S.banana=null;S.parts=[];S.slots=[null,null];S.zapN=0;S.seenZap=0;S.outN=0;S.seenN=0;S.served=0;S.ball=null;S.otherPeer=null;
+  S.code=code;S.role=role;S.game=1;S.lost=0;S.themLost=0;S.mult=1;S.themMult=1;S.cookies=[];S.fx={};S.banana=null;S.parts=[];S.slots=[null,null];S.slotN=[0,0];S.zapN=0;S.seenZap=0;S.outN=0;S.seenN=0;S.served=0;S.ball=null;S.otherPeer=null;
   const id='phonepong-'+code.toLowerCase();
   peer=role==='a'?new Peer(id):new Peer();
   peer.on('open',()=>{
@@ -237,19 +238,19 @@ function onOther(pr){
     const tl=+pr.lost||0;
     if(tl>S.themLost){const v=tl-S.themLost;S.themLost=tl;S.mult=1;pub();onPoint(true,v)}
     const z=pr.zap||{};
-    if(+z.n>S.seenZap){S.seenZap=+z.n;getZap(z.k)}
+    if(+z.n>S.seenZap){S.seenZap=+z.n;getZap(z.k,clamp(+z.m||1,1,3))}
     const out=pr.out||{};
     if(+out.n>S.seenN){S.seenN=+out.n;receive(out)}
   }
   maybeFirstServe();
 }
 
-function getZap(k){
+function getZap(k,n=1){
   const f=FX[k];if(!f||f.self)return;
   const now=performance.now();
-  if(k==='banana')S.banana={x:.2+Math.random()*.6,y:H*(.3+Math.random()*.25),until:now+f.dur};
-  else S.fx[k]=now+f.dur;
-  pub();buzz([40,30,40]);blip(300,.2,'triangle');flash(f.got,1500);S.shake=Math.max(S.shake,.7);
+  if(k==='banana')S.banana={x:.2+Math.random()*.6,y:H*(.3+Math.random()*.25),until:now+f.dur*n};
+  else S.fx[k]=now+f.dur*n;
+  pub();buzz([40,30,40]);blip(300,.2,'triangle');flash(f.got+(n>1?' \u00d7'+n:''),1500);S.shake=Math.max(S.shake,.7);
 }
 function maybeFirstServe(){
   if(S.role==='a'&&S.otherPeer&&S.otherGame===S.game&&S.served!==S.game&&!S.ball&&!gameOver()){
@@ -270,7 +271,7 @@ function sendAcross(b){
 }
 
 function newGame(g,mine){
-  S.game=g;S.lost=0;S.themLost=0;S.mult=1;S.themMult=1;S.cookies=[];S.fx={};S.banana=null;S.parts=[];S.slots=[null,null];S.zapN=0;S.seenZap=0;S.outN=0;S.seenN=0;S.ball=null;S.served=0;
+  S.game=g;S.lost=0;S.themLost=0;S.mult=1;S.themMult=1;S.cookies=[];S.fx={};S.banana=null;S.parts=[];S.slots=[null,null];S.slotN=[0,0];S.zapN=0;S.seenZap=0;S.outN=0;S.seenN=0;S.ball=null;S.served=0;
   $('endOv').hidden=true;paintHud();
   if(mine)pub();
   pub();
@@ -325,13 +326,17 @@ const onSphere=(px,py)=>[px,py,Math.sqrt(Math.max(0,1-px*px-py*py))];
 const turn=v=>[rot[0]*v[0]+rot[1]*v[1]+rot[2]*v[2],rot[3]*v[0]+rot[4]*v[1]+rot[5]*v[2],rot[6]*v[0]+rot[7]*v[1]+rot[8]*v[2]];
 function useSlot(i){
   const t=S.slots[i];if(!t)return;
-  const now=performance.now(),f=FX[t];S.slots[i]=null;S.slotAt[i]=now;
-  if(f.self){if(t==='sticky')S.stk=on('sticky',now)?Math.min(2,(S.stk||1)+1):1;if(t==='bigball')S.bbl=on('bigball',now)?Math.min(3,(S.bbl||1)+1):1;S.fx[t]=now+f.dur;if(t==='big')S.fx.mini=0;pub()}
-  else if(S.mode==='solo')getZap(t);   // practice: no partner, so it lands on you
-  else{S.zapN++;S.zapK=t;pub()}
+  const now=performance.now(),f=FX[t],n=S.slotN[i]||1;S.slots[i]=null;S.slotN[i]=0;S.slotAt[i]=now;
+  // a stack fires all at once: sticky/big ball go up levels, the rest last n times longer
+  if(f.self){
+    if(t==='sticky')S.stk=Math.min(2,(on('sticky',now)?S.stk||1:0)+n);
+    if(t==='bigball')S.bbl=Math.min(3,(on('bigball',now)?S.bbl||1:0)+n);
+    S.fx[t]=now+f.dur*(t==='sticky'||t==='bigball'?1:n);if(t==='big')S.fx.mini=0;pub()}
+  else if(S.mode==='solo')getZap(t,n);   // practice: no partner, so it lands on you
+  else{S.zapN++;S.zapK=t;S.zapM=n;pub()}
   const p=slotPos(i);burst(p.x/W,p.y/W,f.self?'#ffd86e':'#c9a2ff',18,f.self?'star':'heart',1.2);S.shake=Math.max(S.shake,.3);
   buzz([15,25,15]);blip(660,.08,'square',.08);setTimeout(()=>blip(990,.1,'square',.08),70);
-  flash(t==='sticky'&&S.stk>1?'SUPER STICKY! hold to stick':f.take+(t==='bigball'&&S.bbl>1?' \u00d7'+S.bbl:''),1400);
+  flash(t==='sticky'&&S.stk>1?'SUPER STICKY! hold to stick':f.take+(t==='bigball'&&S.bbl>1?' \u00d7'+S.bbl:'')+(n>1&&t!=='bigball'?' \u00d7'+n:''),1400);
 }
 function hitPaddle(b){
   b.r=(b.r||0)+1;b.sq=1;burst(b.x,b.y+ballR(b,performance.now()),myColor(),7,'dot',.5);
@@ -412,8 +417,10 @@ function step(now){
     if(!k.got&&bb&&!bb.stuck&&Math.hypot(bb.x-k.x,bb.y-k.y)<ballR(bb,now)+CR*1.1){k.got=1;collectFx(k);
       buzz([10,30,10]);blip(988,.08,'square',.08);setTimeout(()=>blip(1319,.12,'square',.08),90);
       if(k.t==='cookie'){S.mult=Math.min(5,S.mult+1);pub();paintHud();rescaleBall();flash('Radja! \u00d7'+S.mult,1100)}
-      else{const free=S.slots.indexOf(null);
-        if(free>=0){S.slots[free]=k.t;S.slotAt[free]=now;const p=slotPos(free);burst(p.x/W,p.y/W,FX[k.t].self?'#ffd86e':'#c9a2ff',12,'star',.7);flash('GET! '+FX[k.t].label,900)}
+      else{let free=S.slots.findIndex((x,i)=>x===k.t&&S.slotN[i]<slotCap(x));if(free<0)free=S.slots.indexOf(null);
+        if(free>=0){if(S.slots[free]===k.t)S.slotN[free]++;else{S.slots[free]=k.t;S.slotN[free]=1}S.slotAt[free]=now;
+          const p=slotPos(free),nn=S.slotN[free];burst(p.x/W,p.y/W,FX[k.t].self?'#ffd86e':'#c9a2ff',12+nn*6,'star',.7+nn*.2);
+          flash('GET! '+(k.t==='sticky'&&nn>1?'SUPER STICKY':FX[k.t].label+(nn>1?' \u00d7'+nn:'')),900)}
         else flash('slots full!',800)}}}
   for(const k of S.cookies)if(!k.got&&k.y>=PY()-.02){k.got=1;burst(k.x,k.y,'#e9c9d6',9,'dot',.55);S.parts.push({x:k.x,y:k.y,vx:0,vy:0,g:0,life:.25,max:.25,col:'#e9c9d6',kind:'ring',sz:CR*.7});blip(330,.05,'sine',.05)}
   S.cookies=S.cookies.filter(k=>!k.got);
@@ -606,8 +613,11 @@ function drawSlots(now,u){
       const sc=p.r/(CR*u*1.25);ctx.scale(sc,sc);drawItem({t,x:0,y:0,w:i*2,nolabel:true},now,u)}
     else{ctx.fillStyle='rgba(91,58,74,.25)';ctx.font=`${Math.round(p.r*.7)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('?',0,2);ctx.textBaseline='alphabetic'}
     ctx.restore();
+    if(full&&(S.slotN[i]||1)>1){const bx=p.x+p.r*.72,by=p.y-p.r*.72,rr=p.r*.42,pp=backOut(age/250);ctx.save();ctx.translate(bx,by);ctx.scale(pp,pp);
+      ctx.fillStyle='#ffd86e';ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(0,0,rr,0,7);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#5b3a4a';ctx.font=`${Math.round(rr*1.05)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('\u00d7'+S.slotN[i],0,1);ctx.textBaseline='alphabetic';ctx.restore()}
     if(full){ctx.font=`${Math.round(.026*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';ctx.lineWidth=4;ctx.strokeStyle='#fffdfb';ctx.fillStyle='#5b3a4a';
-      const lb=FX[t].label+(FX[t].self?'':' \u2191');ctx.strokeText(lb,p.x,p.y-p.r-10);ctx.fillText(lb,p.x,p.y-p.r-10)}}
+      const nn=S.slotN[i]||1,lb=(t==='sticky'&&nn>1?'SUPER STICKY':FX[t].label)+(FX[t].self?'':' \u2191');ctx.strokeText(lb,p.x,p.y-p.r-10);ctx.fillText(lb,p.x,p.y-p.r-10)}}
   ctx.restore();
 }
 function drawItem(k,now,u){
