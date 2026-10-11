@@ -44,6 +44,17 @@ button:not(.ghost)::after{content:"";position:absolute;right:20%;bottom:-17px;wi
 button.mint{background:var(--mint)}
 button.purple{background:var(--purple)}
 #partyBox{display:grid;gap:10px}
+.help{text-align:left}
+.help .jp{text-align:center;font-size:16px}
+.rules{margin:0;padding-left:18px;display:grid;gap:6px;font-size:14px;line-height:1.4}
+.legend{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;font-family:var(--display);font-size:11px}
+.legend span{display:flex;align-items:center;gap:5px}
+.legend i{width:14px;height:14px;border-radius:50%;border:2.5px solid var(--ink);display:inline-block}
+#helpList{display:grid;gap:8px}
+.hrow{display:grid;grid-template-columns:52px 1fr;gap:10px;align-items:center}
+.hrow img{width:52px;height:52px}
+.hrow b{font-family:var(--display);font-weight:400;font-size:14px;display:block}
+.hrow span{font-size:13px;line-height:1.35}
 #diagram svg{width:100%;max-width:170px;height:auto;display:block;margin:0 auto}
 button.ghost{background:transparent;color:var(--ink);border:0;box-shadow:none;text-shadow:none;font-size:13px;padding:6px;opacity:.75}
 button:focus-visible,input:focus-visible{outline:3px solid var(--purple);outline-offset:3px}
@@ -127,8 +138,9 @@ input::placeholder{color:rgba(29,18,48,.45)}
     </div>
     <p class="err" id="err" hidden></p>
     <button class="purple" id="btnParty">Party table &#xb7; 3&#x2013;5 phones</button>
+    <button class="ghost" id="btnHelp">How to play</button>
     <button class="ghost" id="btnSolo">Practice alone</button>
-    <p class="small" id="ver">v36</p>
+    <p class="small" id="ver">v37</p>
   </div>
 </div>
 
@@ -156,6 +168,22 @@ input::placeholder{color:rgba(29,18,48,.45)}
     <button class="ghost" id="btnScanCancel">Cancel</button>
   </div>
 </div>
+<div class="ov" id="helpOv" hidden>
+  <div class="panel help">
+    <p class="jp">How to play</p>
+    <ul class="rules">
+      <li>Lay the phones top to top. Drag anywhere to move your paddle.</li>
+      <li>Hit the ball off the top of your screen and it lands on the other phone.</li>
+      <li>Swipe while you hit to put spin on it.</li>
+      <li>Bonuses fall from the top. Hit them with the <b>ball</b>, not the paddle. Below the dashed line they break.</li>
+      <li>Bonuses go into your two slots. Tap a slot to use it. The same bonus twice stacks: stronger or longer.</li>
+      <li><b>2 players:</b> first to 11. <b>Party:</b> 3 lives each, last one standing wins. Tap a red bonus, then pick who gets it.</li>
+    </ul>
+    <div class="legend"><span><i style="background:#1fd655"></i>helps you</span><span><i style="background:#ff2e4d"></i>hits the other</span><span><i style="background:#ffc400"></i>everyone</span></div>
+    <div id="helpList"></div>
+    <button id="btnHelpClose">Got it</button>
+  </div>
+</div>
 <div class="ov" id="endOv" hidden>
   <div class="panel">
     <p class="big" id="endBig">You win!</p>
@@ -169,7 +197,7 @@ input::placeholder{color:rgba(29,18,48,.45)}
 (()=>{
 const WIN=11, PINK='#ff3d8b', MINT='#12d4a3';
 const $=id=>document.getElementById(id);
-const cv=$('c'), ctx=cv.getContext('2d');
+const cv=$('c');let ctx=cv.getContext('2d');
 let W=0,Hpx=0,dpr=1,H=1.6; // H = half-court length in width units
 // the wall: warm plaster with a few big spray splats, speckle and drips, painted once per screen size
 let WALL=null;
@@ -197,7 +225,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=36;   // also shown on the start screen
+const VER=37;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -213,6 +241,10 @@ const PR=.045;
 function makePortals(exit){if(S.mode==='online'||S.mode==='party')return {a:{x:.15+Math.random()*.7,y:H*(.12+Math.random()*.45)},b:null,out:!!exit,cd:0};let a,b;do{a={x:.15+Math.random()*.7,y:H*(.12+Math.random()*.62)};b={x:.15+Math.random()*.7,y:H*(.12+Math.random()*.62)}}while(Math.hypot(a.x-b.x,a.y-b.y)<.45);return {a,b,cd:0}}
 const zoneY=()=>PY()-.11;   // bonuses break apart when they reach this line
 const sharedMult=()=>S.mode==='party'?partyMult():S.mode==='online'?Math.min(9,1+(S.mult-1)+(S.themMult-1)):S.mult;
+const GOOD='#1fd655',BAD='#ff2e4d',ALL='#ffc400';
+const isBad=k=>FX[k]&&!FX[k].self&&!(FX[k].both&&k!=='portal');
+const kindCol=k=>k==='cookie'?ALL:!FX[k]?ALL:FX[k].self?GOOD:k==='tron'?ALL:BAD;
+const kindRGB=k=>({[GOOD]:'31,214,85',[BAD]:'255,46,77',[ALL]:'255,196,0'})[kindCol(k)];
 const slotCap=t=>t==='sticky'?2:3;   // how many of one kind a slot can stack
 const HOLD=2500;   // ms you may keep the ball stuck to your paddle
 const Z=.78;   // zoom: everything on the table is drawn this much smaller, giving more room
@@ -419,7 +451,7 @@ function useSlot(i){
   else if(f.both){S.fx[t]=now+f.dur*n;if(t==='portal')S.portals=makePortals();if(S.mode==='party')psend({t:'zap',to:-1,k:t,n});else if(S.mode!=='solo'){S.zapN++;S.zapK=t;S.zapM=n;pub()}}   // TRON: lights out on both phones
   else if(S.mode==='solo')getZap(t,n);   // practice: no partner, so it lands on you
   else{S.zapN++;S.zapK=t;S.zapM=n;pub()}
-  const p=slotPos(i);burst(p.x/W,p.y/W,f.self?'#ffd400':'#9d6bff',18,'star',1.2);S.shake=Math.max(S.shake,.3);
+  const p=slotPos(i);burst(p.x/W,p.y/W,kindCol(t),18,'star',1.2);S.shake=Math.max(S.shake,.3);
   buzz([15,25,15]);blip(660,.08,'square',.08);setTimeout(()=>blip(990,.1,'square',.08),70);
   flash(t==='sticky'&&S.stk>1?'SUPER STICKY! hold to stick':t==='banana'&&n>1?'Banana rain sent':f.take+(t==='bigball'&&S.bbl>1?' \u00d7'+S.bbl:'')+(n>1&&t!=='bigball'?' \u00d7'+n:''),1400);
 }
@@ -517,7 +549,7 @@ function step(now){
       if(k.t==='cookie'){S.mult=Math.min(5,S.mult+1);pub();paintHud();rescaleBall();flash('Radja! \u00d7'+S.mult,1100)}
       else{let free=S.slots.findIndex((x,i)=>x===k.t&&S.slotN[i]<slotCap(x));if(free<0)free=S.slots.indexOf(null);
         if(free>=0){if(S.slots[free]===k.t)S.slotN[free]++;else{S.slots[free]=k.t;S.slotN[free]=1}S.slotAt[free]=now;
-          const p=slotPos(free),nn=S.slotN[free];burst(p.x/W,p.y/W,FX[k.t].self?'#ffd400':'#9d6bff',12+nn*6,'star',.7+nn*.2);
+          const p=slotPos(free),nn=S.slotN[free];burst(p.x/W,p.y/W,kindCol(k.t),12+nn*6,'star',.7+nn*.2);
           flash('GET! '+(k.t==='sticky'&&nn>1?'SUPER STICKY':k.t==='banana'&&nn>1?'BANANA RAIN'+(nn>2?' \u00d7'+(nn-1):''):FX[k.t].label+(nn>1?' \u00d7'+nn:'')),900)}
         else flash('slots full!',800)}}}
   for(const k of S.cookies)if(!k.got&&k.y>=zoneY()){k.got=1;shatter(k)}
@@ -537,7 +569,7 @@ function burst(x,y,col,n,kind,power){
   if(S.parts.length>220)S.parts.splice(0,S.parts.length-220);
 }
 function collectFx(k){
-  const col=k.t==='cookie'?'#e9b87c':(FX[k.t]&&FX[k.t].self?'#ffd400':'#9d6bff');
+  const col=kindCol(k.t);
   burst(k.x,k.y,col,16,'star',1.1);burst(k.x,k.y,'#fff',8,'dot',.8);
   S.parts.push({x:k.x,y:k.y,vx:0,vy:0,g:0,life:.35,max:.35,col,kind:'ring',sz:CR});
 }
@@ -610,12 +642,12 @@ function draw(now){
     ctx.restore()}
   for(const q of S.bananas)drawBanana(q.x*u,q.y*u,.045*Z*u,Math.sin(now/400+q.w)*(q.vy?.6:.15)+(q.vy?now/700+q.w:0));
   for(const k of S.cookies){const sc=backOut((now-k.born)/380),x=k.x*u,y=k.y*u,al=1;
-    const self=k.t==='cookie'||(FX[k.t]&&FX[k.t].self),glow=self?'255,212,0':'157,107,255',ph=now/1000+k.w;
+    const self=k.t==='cookie'||(FX[k.t]&&FX[k.t].self),glow=kindRGB(k.t),ph=now/1000+k.w;
     // soft pulsing halo
     ctx.globalAlpha=al*(.35+.2*Math.sin(ph*5));ctx.fillStyle=`rgba(${glow},.55)`;ctx.beginPath();ctx.arc(x,y,CR*u*(1.6+.15*Math.sin(ph*5)),0,7);ctx.fill();
     // twinkles circling it
     ctx.globalAlpha=al;for(let i=0;i<3;i++){const a=ph*2.2+i*2.09,tw=.5+.5*Math.sin(ph*9+i*2),sx=x+Math.cos(a)*CR*u*1.7,sy=y+Math.sin(a)*CR*u*1.4,sr=CR*u*.18*tw;
-      ctx.fillStyle=self?'#ffd400':'#9d6bff';ctx.beginPath();for(let j=0;j<8;j++){const rr=j%2?sr*.35:sr,aa=j*Math.PI/4;ctx.lineTo(sx+Math.cos(aa)*rr,sy+Math.sin(aa)*rr)}ctx.closePath();ctx.fill()}
+      ctx.fillStyle=kindCol(k.t);ctx.beginPath();for(let j=0;j<8;j++){const rr=j%2?sr*.35:sr,aa=j*Math.PI/4;ctx.lineTo(sx+Math.cos(aa)*rr,sy+Math.sin(aa)*rr)}ctx.closePath();ctx.fill()}
     // bouncy breathing + wobble
     const br=1+.07*Math.sin(ph*6),wob=Math.sin(ph*3.3)*.18;
     ctx.save();ctx.translate(x,y);ctx.rotate(wob);ctx.scale(sc*br,sc/br);ctx.translate(-x,-y);drawItem(k,now,u);ctx.restore();ctx.globalAlpha=1}
@@ -674,7 +706,7 @@ function drawSide(cx,who,col,stat,score,fxl,popT,now,u,dim){
 function fxList(get){const l=[];for(const k in FX){const t=get(k);if(t>0)l.push({k,t})}return l.sort((a,b)=>a.t-b.t)}
 // one effect as a sticker icon; with a ring that drains as its time runs out
 function drawFxIcon(e,x,y,r,now,u,ring){
-  const f=FX[e.k],col=f.both?'#7df9ff':f.self?'#ffd400':'#b48cff';
+  const f=FX[e.k],col=kindCol(e.k);
   ctx.save();ctx.translate(x,y);
   if(ring){const frac=clamp(e.t/f.dur,0,1);
     ctx.fillStyle='#1d1230';ctx.beginPath();ctx.arc(2,3,r+5,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,r+5,0,7);ctx.fill();
@@ -726,8 +758,8 @@ function drawPaddle(cx,top,sc,st,col,now,u,sq){
   // aura: gold glow = an upgrade is active, purple dashed ring = a downgrade is active
   const buff=big||st.on('bigball')||st.on('sticky'),debuff=mini||round||drunk||st.on('reverse')||st.on('smallball');
   const aura=pad=>{ctx.beginPath();round?ctx.arc(0,fy,R+pad,0,7):ctx.roundRect(-hw-pad,-pad,hw*2+pad*2,b+pad*2,(b+pad*2)/2)};
-  if(buff){const pad=.012*U;ctx.fillStyle=`rgba(255,216,110,${.25+.12*Math.sin(now/220)})`;aura(pad);ctx.fill();ctx.strokeStyle='rgba(232,170,40,.9)';ctx.lineWidth=Math.max(1,2.5*sc);aura(pad);ctx.stroke()}
-  if(debuff){const pad=(buff?.028:.014)*U;ctx.save();ctx.setLineDash([6*Math.max(.5,sc),5*Math.max(.5,sc)]);ctx.lineDashOffset=-now/40;ctx.strokeStyle='#9b6bff';ctx.lineWidth=Math.max(1,2.5*sc);aura(pad);ctx.stroke();ctx.restore()}
+  if(buff){const pad=.012*U;ctx.fillStyle=`rgba(31,214,85,${.22+.12*Math.sin(now/220)})`;aura(pad);ctx.fill();ctx.strokeStyle='rgba(20,170,65,.95)';ctx.lineWidth=Math.max(1,2.5*sc);aura(pad);ctx.stroke()}
+  if(debuff){const pad=(buff?.028:.014)*U;ctx.save();ctx.setLineDash([6*Math.max(.5,sc),5*Math.max(.5,sc)]);ctx.lineDashOffset=-now/40;ctx.strokeStyle=BAD;ctx.lineWidth=Math.max(1,2.5*sc);aura(pad);ctx.stroke();ctx.restore()}
   // sticky (flat paddle): goo drips underneath
   if(st.on('sticky')&&!round){const n=st.stk>1?5:3;ctx.fillStyle='#9d6bff';ctx.strokeStyle=ink;ctx.lineWidth=1.5*Math.max(.6,sc);
     for(let i=0;i<n;i++){const dx=(n===1?0:(i/(n-1)-.5))*hw*1.4,L=(.012+.008*Math.sin(now/380+i*1.7))*U*(st.stk>1?1.7:1),r=.007*U;
@@ -779,7 +811,7 @@ function drawSlots(now,u){
     ctx.fillStyle='rgba(29,18,48,.14)';ctx.beginPath();ctx.arc(2,4,p.r,0,7);ctx.fill();
     ctx.fillStyle=full?'#ffffff':'rgba(255,253,251,.6)';ctx.strokeStyle=full?'#1d1230':'rgba(29,18,48,.35)';ctx.lineWidth=3;
     if(!full)ctx.setLineDash([5,6]);ctx.beginPath();ctx.arc(0,0,p.r,0,7);ctx.fill();ctx.stroke();ctx.setLineDash([]);
-    if(full){const g=FX[t].both?'125,249,255':FX[t].self?'255,212,0':'157,107,255';ctx.strokeStyle=`rgba(${g},${.5+.3*Math.sin(now/180)})`;ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,p.r+5,0,7);ctx.stroke();
+    if(full){const g=kindRGB(t);ctx.strokeStyle=`rgba(${g},${.5+.3*Math.sin(now/180)})`;ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,p.r+5,0,7);ctx.stroke();
       const sc=p.r/(CR*u*1.25);ctx.scale(sc,sc);drawItem({t,x:0,y:0,w:i*2,nolabel:true},now,u)}
     else{ctx.fillStyle='rgba(29,18,48,.25)';ctx.font=`${Math.round(p.r*.7)}px "Bungee", "Arial Black", system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('?',0,2);ctx.textBaseline='alphabetic'}
     ctx.restore();
@@ -797,8 +829,9 @@ function drawItem(k,now,u){
   else{
     const f=FX[k.t],pulse=1+Math.sin(now/180)*.05,R=r*1.15*pulse;
     ctx.fillStyle='rgba(29,18,48,.12)';ctx.beginPath();ctx.arc(x+3,y+5,R,0,7);ctx.fill();
-    ctx.fillStyle='rgba(29,18,48,.85)';ctx.beginPath();ctx.arc(x+2,y+4,R+3,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x,y,R+3,0,7);ctx.fill();
-    ctx.fillStyle=f.both?'#7df9ff':f.self?'#ffd400':'#b48cff';ctx.strokeStyle='#1d1230';ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,R,0,7);ctx.fill();ctx.stroke();
+    ctx.fillStyle='rgba(29,18,48,.85)';ctx.beginPath();ctx.arc(x+2,y+4,R+6,0,7);ctx.fill();ctx.fillStyle='#1d1230';ctx.beginPath();ctx.arc(x,y,R+6,0,7);ctx.fill();
+    ctx.fillStyle=kindCol(k.t);ctx.beginPath();ctx.arc(x,y,R+4.5,0,7);ctx.fill();
+    ctx.fillStyle='#fff';ctx.strokeStyle='#1d1230';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(x,y,R,0,7);ctx.fill();ctx.stroke();
     const col=f.self?myColor():theirColor(),h=R*.3;
     ctx.lineWidth=2;ctx.lineCap='round';
     const arrow=(x1,y1,x2,y2)=>{const a=Math.atan2(y2-y1,x2-x1),hl=R*.14;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.moveTo(x2,y2);ctx.lineTo(x2-hl*Math.cos(a-.6),y2-hl*Math.sin(a-.6));ctx.moveTo(x2,y2);ctx.lineTo(x2-hl*Math.cos(a+.6),y2-hl*Math.sin(a+.6));ctx.stroke()};
@@ -1052,6 +1085,31 @@ async function startScan(){
     requestAnimationFrame(tick)};
   tick();
 }
+
+/* ---------- How to play: every bonus with its real icon ---------- */
+const HELP=[
+ ['cookie','Radja','Instant. Adds to the shared multiplier: the next point is worth more and the ball gets faster for everyone. Resets when someone misses.'],
+ ['big','Big','Your paddle grows for 10 seconds.'],
+ ['bigball','Big ball','The ball is bigger on your half: easier to hit and to catch bonuses with. Stacks up to 3 sizes.'],
+ ['sticky','Sticky','More grip: swipe to curve the ball harder. Two of them = SUPER STICKY: the ball sticks to your paddle while your finger is down (2.5 s max), lift to shoot.'],
+ ['mini','Tiny','Their paddle shrinks for 8 seconds.'],
+ ['smallball','Tiny ball','The ball is tiny on their half.'],
+ ['round','Round','Their paddle turns into a ball. Bounces go wild.'],
+ ['drunk','Drunk','The ball swerves in big curves on their half.'],
+ ['reverse','Swap','Their left and right are swapped.'],
+ ['banana','Banana','A peel on their half: the ball slips off in a random direction. Two = BANANA RAIN.'],
+ ['portal','Portal','A hole on your half and one on theirs. Ball in your hole pops out at them, skipping the net.'],
+ ['tron','Strobo','Rare. Lights out for everyone: paddle and ball blink in turns.']];
+function iconURL(t){const c=document.createElement('canvas'),px=104;c.width=c.height=px;const g=c.getContext('2d');
+  const old=ctx;ctx=g;try{const sc=px/2/(CR*W*2.1);g.translate(px/2,px/2);g.scale(sc,sc);drawItem({t,x:0,y:0,w:0,nolabel:true},performance.now(),W)}catch(e){}ctx=old;return c.toDataURL()}
+function openHelp(){
+  $('helpList').innerHTML='';
+  for(const [t,name,txt] of HELP){const r=document.createElement('div');r.className='hrow';const im=document.createElement('img');im.alt='';im.src=iconURL(t);
+    const d=document.createElement('div');const b=document.createElement('b');b.textContent=name+(t!=='cookie'&&FX[t]&&!FX[t].self&&t!=='tron'?' \u2191':'');b.style.color=kindCol(t)===GOOD?'#0e9b3c':kindCol(t)===BAD?'#d9142f':'#a67c00';
+    const sp=document.createElement('span');sp.textContent=txt;d.append(b,sp);r.append(im,d);$('helpList').append(r)}
+  $('helpOv').hidden=false}
+$('btnHelp').onclick=()=>{audio();openHelp()};
+$('btnHelpClose').onclick=()=>{$('helpOv').hidden=true};
 /* ---------- buttons ---------- */
 function newCode(){const a='ABCDEFGHJKMNPQRSTUVWXYZ';return Array.from({length:4},()=>a[Math.floor(Math.random()*a.length)]).join('')}
 $('btnCreate').onclick=()=>{audio();enter(newCode(),'a')};
