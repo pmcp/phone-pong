@@ -73,7 +73,7 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
     </div>
     <p class="err" id="err" hidden></p>
     <button class="ghost" id="btnSolo">Practice alone</button>
-    <p class="small" id="ver">v15</p>
+    <p class="small" id="ver">v16</p>
   </div>
 </div>
 
@@ -113,7 +113,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=15;   // also shown on the start screen
+const VER=16;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -382,7 +382,7 @@ function step(now){
   const playing=(S.mode==='solo'||(S.mode==='online'&&S.otherPeer))&&!gameOver()&&$('endOv').hidden;
   if(playing&&!S.nextCookie)S.nextCookie=now+1500+Math.random()*1500;
   if(playing&&now>S.nextCookie&&S.cookies.length<3){
-    const pool=S.mode==='solo'?['cookie','cookie','big','bigball','sticky','sticky']:['cookie','cookie','cookie','big','bigball','sticky','sticky','mini','smallball','round','drunk','reverse','banana'];
+    const pool=['cookie','cookie','cookie','big','bigball','sticky','sticky','mini','smallball','round','drunk','reverse','banana'];
     const t=pool[Math.floor(Math.random()*pool.length)];
     S.cookies.push({t,x:.15+Math.random()*.7,y:-.06,vy:.2+Math.random()*.08,born:now,w:Math.random()*6});S.nextCookie=now+1800+Math.random()*1700}
   // items float on your half; hit one with the ball to collect it
@@ -392,6 +392,7 @@ function step(now){
     if(!k.got&&bb&&!bb.stuck&&Math.hypot(bb.x-k.x,bb.y-k.y)<ballR(bb,now)+CR*1.1){k.got=1;collectFx(k);
       buzz([10,30,10]);blip(988,.08,'square',.08);setTimeout(()=>blip(1319,.12,'square',.08),90);
       if(k.t==='cookie'){S.mult=Math.min(5,S.mult+1);pub();paintHud();rescaleBall();flash('Radja! \u00d7'+S.mult,1100)}
+      else if(S.mode==='solo'&&!FX[k.t].self)getZap(k.t);
       else{const free=S.slots.indexOf(null);
         if(free>=0){S.slots[free]=k.t;S.slotAt[free]=now;const p=slotPos(free);burst(p.x/W,p.y/W,FX[k.t].self?'#ffd86e':'#c9a2ff',12,'star',.7);flash('GET! '+FX[k.t].label,900)}
         else flash('slots full!',800)}}}
