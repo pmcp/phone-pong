@@ -84,7 +84,7 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
     </div>
     <p class="err" id="err" hidden></p>
     <button class="ghost" id="btnSolo">Practice alone</button>
-    <p class="small" id="ver">v17</p>
+    <p class="small" id="ver">v18</p>
   </div>
 </div>
 
@@ -132,7 +132,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=17;   // also shown on the start screen
+const VER=18;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -327,6 +327,7 @@ function useSlot(i){
   const t=S.slots[i];if(!t)return;
   const now=performance.now(),f=FX[t];S.slots[i]=null;S.slotAt[i]=now;
   if(f.self){if(t==='sticky')S.stk=on('sticky',now)?Math.min(2,(S.stk||1)+1):1;if(t==='bigball')S.bbl=on('bigball',now)?Math.min(3,(S.bbl||1)+1):1;S.fx[t]=now+f.dur;if(t==='big')S.fx.mini=0;pub()}
+  else if(S.mode==='solo')getZap(t);   // practice: no partner, so it lands on you
   else{S.zapN++;S.zapK=t;pub()}
   const p=slotPos(i);burst(p.x/W,p.y/W,f.self?'#ffd86e':'#c9a2ff',18,f.self?'star':'heart',1.2);S.shake=Math.max(S.shake,.3);
   buzz([15,25,15]);blip(660,.08,'square',.08);setTimeout(()=>blip(990,.1,'square',.08),70);
@@ -411,7 +412,6 @@ function step(now){
     if(!k.got&&bb&&!bb.stuck&&Math.hypot(bb.x-k.x,bb.y-k.y)<ballR(bb,now)+CR*1.1){k.got=1;collectFx(k);
       buzz([10,30,10]);blip(988,.08,'square',.08);setTimeout(()=>blip(1319,.12,'square',.08),90);
       if(k.t==='cookie'){S.mult=Math.min(5,S.mult+1);pub();paintHud();rescaleBall();flash('Radja! \u00d7'+S.mult,1100)}
-      else if(S.mode==='solo'&&!FX[k.t].self)getZap(k.t);
       else{const free=S.slots.indexOf(null);
         if(free>=0){S.slots[free]=k.t;S.slotAt[free]=now;const p=slotPos(free);burst(p.x/W,p.y/W,FX[k.t].self?'#ffd86e':'#c9a2ff',12,'star',.7);flash('GET! '+FX[k.t].label,900)}
         else flash('slots full!',800)}}}
