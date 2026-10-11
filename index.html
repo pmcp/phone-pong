@@ -73,7 +73,7 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
     </div>
     <p class="err" id="err" hidden></p>
     <button class="ghost" id="btnSolo">Practice alone</button>
-    <p class="small" id="ver">v13</p>
+    <p class="small" id="ver">v14</p>
   </div>
 </div>
 
@@ -113,7 +113,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=13;   // also shown on the start screen
+const VER=14;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -562,10 +562,10 @@ function drawPaddle(cx,top,sc,st,col,now,u,sq){
   // swapped controls: arrows over the paddle
   if(st.on('reverse')){const ay=t-.022*U,aw=.04*U,hl=.01*U;ctx.strokeStyle=ink;ctx.lineWidth=Math.max(1,2*sc);ctx.beginPath();
     ctx.moveTo(-aw,ay-hl);ctx.lineTo(aw,ay-hl);ctx.lineTo(aw-hl,ay-hl*2);ctx.moveTo(aw,ay+hl);ctx.lineTo(-aw,ay+hl);ctx.lineTo(-aw+hl,ay+hl*2);ctx.stroke()}
-  // ball size changes: a little ball circling the paddle
-  if(st.on('bigball')||st.on('smallball')){const a=now/450,orx=hw+.035*U,ory=(b-t)*.5+.035*U,bx=Math.cos(a)*orx,by=fy+Math.sin(a)*ory;
-    const br=BR*U*.55*(st.on('bigball')?[1,1.8,2.6,3.3][st.bbl]:1)*(st.on('smallball')?.5:1);
-    ctx.fillStyle='#fff';ctx.strokeStyle=ink;ctx.lineWidth=Math.max(1,1.8*sc);ctx.beginPath();ctx.arc(bx,by,Math.max(2,br),0,7);ctx.fill();ctx.stroke()}
+  // ball size changes: only on her mini paddle in the corner (sc<1), a small faded ball resting beside it
+  if(sc<1&&(st.on('bigball')||st.on('smallball'))){const bx=hw+.05*U,by=fy;ctx.globalAlpha=.55;
+    const br=BR*U*.4*(st.on('bigball')?[1,1.8,2.6,3.3][st.bbl]:1)*(st.on('smallball')?.5:1);
+    ctx.fillStyle='#fff';ctx.strokeStyle=ink;ctx.lineWidth=Math.max(1,1.8*sc);ctx.beginPath();ctx.arc(bx,by,Math.max(2,br),0,7);ctx.fill();ctx.stroke();ctx.globalAlpha=1}
   // banana on this half: a sticker on the paddle
   if(st.banana)drawBanana(hw*.72,fy,.014*U,.3);
   // cookie multiplier badge
