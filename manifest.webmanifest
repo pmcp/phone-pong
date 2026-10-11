@@ -1,0 +1,14 @@
+{
+  "name": "Phone Pong",
+  "short_name": "Phone Pong",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffeef4",
+  "theme_color": "#ffeef4",
+  "icons": [
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

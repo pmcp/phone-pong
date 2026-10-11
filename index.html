@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#ffeef4">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Phone Pong">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Phone Pong</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=M+PLUS+Rounded+1c:wght@500;800&display=swap">
@@ -41,6 +47,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--butter);outline
 input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing:.3em;text-transform:uppercase;border:3px solid var(--line);border-radius:18px;padding:8px 4px;color:var(--ink);background:var(--sky2);width:100%;box-sizing:border-box}
 .code{font-family:var(--display);font-size:52px;letter-spacing:.18em;color:var(--ink);background:var(--sky2);border:3px dashed var(--pink);border-radius:20px;padding:6px 0 2px}
 .small{font-size:13px;opacity:.75}
+.scanbox{justify-self:center;width:min(260px,100%);aspect-ratio:1;max-width:100%;border:3px solid var(--line);border-radius:20px;overflow:hidden;background:#000}
+.scanbox video{width:100%;height:100%;object-fit:cover;display:block}
 .qr{justify-self:center;width:180px;height:180px;background:#fff;border:3px solid var(--line);border-radius:20px;padding:8px}
 .qr svg{width:100%;height:100%;display:block}
 .mult{font-size:14px;color:#c98a1d}
@@ -71,9 +79,12 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
       <input id="codeIn" maxlength="4" placeholder="CODE" autocomplete="off" aria-label="Table code">
       <button class="mint" id="btnJoin">Join</button>
     </div>
+    <div class="row">
+      <button class="mint" id="btnScan">Scan QR</button>
+    </div>
     <p class="err" id="err" hidden></p>
     <button class="ghost" id="btnSolo">Practice alone</button>
-    <p class="small" id="ver">v16</p>
+    <p class="small" id="ver">v17</p>
   </div>
 </div>
 
@@ -88,6 +99,14 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
   </div>
 </div>
 
+<div class="ov" id="scanOv" hidden>
+  <div class="panel">
+    <p class="jp">&#x3088;&#x307f;&#x3053;&#x307f;&#x4e2d;&#x2026;</p>
+    <div class="scanbox"><video id="scanVid" playsinline muted></video></div>
+    <p class="small" id="scanMsg">Point the camera at your partner&#x2019;s QR code.</p>
+    <button class="ghost" id="btnScanCancel">Cancel</button>
+  </div>
+</div>
 <div class="ov" id="endOv" hidden>
   <div class="panel">
     <p class="big" id="endBig">&#x3084;&#x3063;&#x305f;!</p>
@@ -113,7 +132,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=16;   // also shown on the start screen
+const VER=17;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -311,7 +330,7 @@ function useSlot(i){
   else{S.zapN++;S.zapK=t;pub()}
   const p=slotPos(i);burst(p.x/W,p.y/W,f.self?'#ffd86e':'#c9a2ff',18,f.self?'star':'heart',1.2);S.shake=Math.max(S.shake,.3);
   buzz([15,25,15]);blip(660,.08,'square',.08);setTimeout(()=>blip(990,.1,'square',.08),70);
-  flash(f.take+(t==='bigball'&&S.bbl>1?' \u00d7'+S.bbl:'')+(t==='sticky'&&S.stk>1?' \u00d7'+S.stk+' hold to stick!':''),1400);
+  flash(t==='sticky'&&S.stk>1?'SUPER STICKY! hold to stick':f.take+(t==='bigball'&&S.bbl>1?' \u00d7'+S.bbl:''),1400);
 }
 function hitPaddle(b){
   b.r=(b.r||0)+1;b.sq=1;burst(b.x,b.y+ballR(b,performance.now()),myColor(),7,'dot',.5);
@@ -495,7 +514,7 @@ function draw(now){
   drawPaddle(px,py,1,myStat(now),myColor(),now,u,squish);
   // countdowns for everything active on this phone
   const timers=[];
-  for(const k in FX){const t=k==='banana'?(S.banana?S.banana.until-now:0):(S.fx[k]||0)-now;if(t>0)timers.push({txt:FX[k].label+(k==='bigball'&&S.bbl>1?' \u00d7'+S.bbl:'')+(k==='sticky'&&S.stk>1?' \u00d7'+S.stk:'')+' '+Math.ceil(t/1000),good:FX[k].self})}
+  for(const k in FX){const t=k==='banana'?(S.banana?S.banana.until-now:0):(S.fx[k]||0)-now;if(t>0)timers.push({txt:(k==='sticky'&&S.stk>1?'SUPER STICKY':FX[k].label)+(k==='bigball'&&S.bbl>1?' \u00d7'+S.bbl:'')+' '+Math.ceil(t/1000),good:FX[k].self})}
   if(timers.length){
     ctx.font=`${Math.round(.036*u)}px "Mochiy Pop One", system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';
     const gap=.015*u,ws=timers.map(t=>ctx.measureText(t.txt).width+.04*u),tot=ws.reduce((a,c)=>a+c,0)+gap*(ws.length-1);
@@ -522,7 +541,7 @@ function drawThem(now,u){
   drawPaddle(cx,top,.32,themStat(now),theirColor(),now,u,0);
   let best=null;for(const k in FX){const t=k==='banana'?them.banana-now:(them.fx[k]||0)-now;if(t>0&&(!best||t<best.t))best={k,t}}
   if(best){const f=FX[best.k];ctx.fillStyle=f.self?'#a8781a':'#7a52c7';ctx.font=`${Math.round(.022*u)}px "Mochiy Pop One", system-ui`;
-    ctx.fillText(f.label+' '+Math.ceil(best.t/1000),cx,top+.06*u)}
+    ctx.fillText((best.k==='sticky'&&them.stk>1?'SUPER STICKY':f.label)+' '+Math.ceil(best.t/1000),cx,top+.06*u)}
   ctx.restore();
 }
 const myStat=now=>({on:k=>on(k,now),stk:S.stk||1,bbl:S.bbl||1,mult:S.mult,banana:!!S.banana});
@@ -666,10 +685,32 @@ function drawQR(code){
   try{const q=qrcode(0,'M');q.addData(location.origin+location.pathname+'#'+code);q.make();box.innerHTML=q.createSvgTag({cellSize:6,margin:0,scalable:true})}
   catch(e){box.hidden=true}
 }
+/* ---------- QR scanner (works inside the home-screen app too) ---------- */
+let scanStream=null,scanOn=false;
+function loadJsQR(){return window.jsQR?Promise.resolve():new Promise((ok,no)=>{const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';sc.onload=ok;sc.onerror=no;document.head.appendChild(sc)})}
+function stopScan(){scanOn=false;try{scanStream&&scanStream.getTracks().forEach(t=>t.stop())}catch(e){}scanStream=null;$('scanOv').hidden=true}
+async function startScan(){
+  showErr('');$('scanMsg').textContent='Point the camera at your partner\u2019s QR code.';$('scanOv').hidden=false;
+  try{await loadJsQR()}catch(e){stopScan();showErr('Could not load the scanner. Check your internet, or type the code.');return}
+  try{scanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false})}
+  catch(e){stopScan();showErr('No camera access. Allow the camera in Settings, or type the code.');return}
+  const v=$('scanVid');v.srcObject=scanStream;try{await v.play()}catch(e){}
+  const c=document.createElement('canvas'),cx=c.getContext('2d',{willReadFrequently:true});scanOn=true;
+  const tick=()=>{if(!scanOn)return;
+    if(v.readyState>=2&&v.videoWidth){const w=480,h=Math.round(w*v.videoHeight/v.videoWidth);c.width=w;c.height=h;cx.drawImage(v,0,0,w,h);
+      const r=window.jsQR(cx.getImageData(0,0,w,h).data,w,h,{inversionAttempts:'dontInvert'});
+      if(r&&r.data){const m=r.data.match(/#([A-Za-z]{4})\s*$/)||r.data.trim().match(/^([A-Za-z]{4})$/);
+        if(m){const code=m[1].toUpperCase();stopScan();buzz(30);blip(880,.1);$('codeIn').value=code;enter(code,'b');return}
+        $('scanMsg').textContent='That QR is not a Phone Pong table.'}}
+    requestAnimationFrame(tick)};
+  tick();
+}
 /* ---------- buttons ---------- */
 function newCode(){const a='ABCDEFGHJKMNPQRSTUVWXYZ';return Array.from({length:4},()=>a[Math.floor(Math.random()*a.length)]).join('')}
 $('btnCreate').onclick=()=>{audio();enter(newCode(),'a')};
 $('btnJoin').onclick=()=>{audio();const c=$('codeIn').value.trim().toUpperCase();if(!/^[A-Z]{4}$/.test(c)){showErr('Type the 4-letter code from your partner\u2019s screen.');return}enter(c,'b')};
+$('btnScan').onclick=()=>{audio();startScan()};
+$('btnScanCancel').onclick=stopScan;
 $('codeIn').addEventListener('keydown',e=>{if(e.key==='Enter')$('btnJoin').click()});
 $('btnSolo').onclick=()=>{audio();S.mode='solo';S.lost=0;$('lobby').hidden=true;$('topHint').hidden=true;$('hud').hidden=true;flash('practice \u2661',1200);S.serveAt=performance.now()+900};
 function leave(){try{conn&&conn.close()}catch(e){}try{peer&&peer.destroy()}catch(e){}conn=null;peer=null;S.mode='lobby';S.ball=null;S.serveAt=0;S.otherPeer=null;
