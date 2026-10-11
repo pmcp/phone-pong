@@ -124,7 +124,7 @@ input::placeholder{color:rgba(29,18,48,.45)}
     </div>
     <p class="err" id="err" hidden></p>
     <button class="ghost" id="btnSolo">Practice alone</button>
-    <p class="small" id="ver">v34</p>
+    <p class="small" id="ver">v35</p>
   </div>
 </div>
 
@@ -188,7 +188,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=34;   // also shown on the start screen
+const VER=35;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -203,6 +203,7 @@ const raining=now=>now<S.rain.until;
 const PR=.045;
 function makePortals(exit){if(S.mode==='online')return {a:{x:.15+Math.random()*.7,y:H*(.12+Math.random()*.45)},b:null,out:!!exit,cd:0};let a,b;do{a={x:.15+Math.random()*.7,y:H*(.12+Math.random()*.62)};b={x:.15+Math.random()*.7,y:H*(.12+Math.random()*.62)}}while(Math.hypot(a.x-b.x,a.y-b.y)<.45);return {a,b,cd:0}}
 const zoneY=()=>PY()-.11;   // bonuses break apart when they reach this line
+const sharedMult=()=>S.mode==='online'?Math.min(9,1+(S.mult-1)+(S.themMult-1)):S.mult;
 const slotCap=t=>t==='sticky'?2:3;   // how many of one kind a slot can stack
 const HOLD=2500;   // ms you may keep the ball stuck to your paddle
 const Z=.78;   // zoom: everything on the table is drawn this much smaller, giving more room
@@ -363,7 +364,7 @@ function miss(){
   if(S.ball)burst(S.ball.x,H,'#1d1230',10,'dot',.6);S.shake=1;
   S.ball=null;
   if(S.mode==='solo'){S.lost=0;S.mult=1;paintHud();flash('Missed',1000);S.serveAt=performance.now()+900;return}
-  S.lost+=S.themMult;S.mult=1;pub();popChip('sThem');buzz(120);blip(220,.25,'sawtooth',.08);paintHud();
+  S.lost+=sharedMult();S.mult=1;pub();popChip('sThem');buzz(120);blip(220,.25,'sawtooth',.08);paintHud();
   if(gameOver())return endGame();
   flash('Missed. Your serve',1100);S.serveAt=performance.now()+1300;
 }
@@ -622,17 +623,10 @@ function draw(now){
   else if(!tronBall){const pw=(on('round',now)?roundR(now)*2:padW(now))*u,ph=on('round',now)?pw:.055*Z*u;ctx.save();ctx.globalAlpha=(now%450)<60?.4:1;
     ctx.shadowColor='#7df9ff';ctx.shadowBlur=22;ctx.strokeStyle='#7df9ff';ctx.lineWidth=3;ctx.fillStyle='#0b2430';
     ctx.beginPath();ctx.roundRect(px-pw/2,py,pw,ph,ph/2);ctx.fill();ctx.stroke();ctx.restore()}
-  // countdowns for everything active on this phone
-  const timers=[];
-  for(const k in FX){const t=k==='banana'?bananaLeft(now):(S.fx[k]||0)-now;if(t>0)timers.push({txt:(k==='sticky'&&S.stk>1?'SUPER STICKY':k==='banana'&&raining(now)?'BANANA RAIN':FX[k].label)+(k==='bigball'&&S.bbl>1?' \u00d7'+S.bbl:'')+' '+Math.ceil(t/1000),good:FX[k].self})}
-  if(timers.length){
-    ctx.font=`${Math.round(.036*u)}px "Bungee", "Arial Black", system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';
-    const gap=.015*u,ws=timers.map(t=>ctx.measureText(t.txt).width+.04*u),tot=ws.reduce((a,c)=>a+c,0)+gap*(ws.length-1);
-    let x0=Math.max(.02*u,Math.min(u*.98-tot,px-tot/2));const ty=py-.09*u,th=.06*u;
-    timers.forEach((t,i)=>{ctx.fillStyle='#1d1230';ctx.beginPath();ctx.roundRect(x0+2,ty-th/2+3,ws[i],th,th/2);ctx.fill();ctx.fillStyle=t.good?'#ffd400':'#b48cff';ctx.strokeStyle='#1d1230';ctx.lineWidth=2.5;ctx.beginPath();ctx.roundRect(x0,ty-th/2,ws[i],th,th/2);ctx.fill();ctx.stroke();
-      ctx.fillStyle='#1d1230';ctx.fillText(t.txt,x0+ws[i]/2,ty+1);x0+=ws[i]+gap});
-    ctx.textBaseline='alphabetic';
-  }
+  // active effects: icons below the paddle, between the item slots, each with a draining ring
+  const list=fxList(k=>k==='banana'?bananaLeft(now):(S.fx[k]||0)-now);
+  if(list.length&&S.mode!=='lobby'){const sp=slotPos(0),r=Math.min(17,.045*u),gap=r*2+10,x0=W/2-(list.length-1)*gap/2;
+    list.slice(0,4).forEach((e,i)=>drawFxIcon(e,x0+i*gap,sp.y,r,now,u,true))}
   if(S.mode!=='lobby')drawBoard(now,u);
   // message
   if(now<S.msgUntil&&S.msg){ctx.font=`${Math.round(.062*u)}px "Bungee", "Arial Black", system-ui`;ctx.textAlign='center';ctx.fillStyle='#ff3d8b';ctx.globalAlpha=Math.min(1,(S.msgUntil-now)/300);
@@ -648,7 +642,7 @@ function activeFx(get,stk,rain,now){let best=null;
   for(const k in FX){const t=get(k);if(t>0&&(!best||t<best.t))best={k,t}}
   if(!best)return null;const f=FX[best.k];
   return {txt:(best.k==='sticky'&&stk>1?'SUPER STICKY':best.k==='banana'&&rain?'BANANA RAIN':f.label)+' '+Math.ceil(best.t/1000),self:f.self}}
-function drawSide(cx,who,col,stat,score,mult,fxi,popT,now,u,dim){
+function drawSide(cx,who,col,stat,score,fxl,popT,now,u,dim){
   const top=Math.max(48,.12*u);ctx.save();if(dim)ctx.globalAlpha=.75;
   ctx.textAlign='center';ctx.fillStyle='#1d1230';
   ctx.font=`${Math.round(.026*u)}px "Bungee", "Arial Black", system-ui`;ctx.globalAlpha=dim?.5:.7;ctx.fillText(who,cx,top-.03*u);ctx.globalAlpha=dim?.75:1;
@@ -658,23 +652,45 @@ function drawSide(cx,who,col,stat,score,mult,fxi,popT,now,u,dim){
   ctx.save();ctx.translate(cx,top+.085*u);ctx.scale(sc,sc);
   ctx.font=`${Math.round(.065*u)}px "Bungee", "Arial Black", system-ui`;ctx.lineWidth=5;ctx.strokeStyle='#ffffff';ctx.lineJoin='round';
   ctx.strokeText(String(score),0,0);ctx.fillStyle=col==='#ffd400'?'#a8781a':'#1d1230';ctx.fillText(String(score),0,0);ctx.restore();
-  // multiplier pill
-  if(mult>1){const tx='\u00d7'+mult,w=.075*u,h=.04*u,x=cx+.07*u,y=top+.055*u;
-    ctx.fillStyle='#ffd400';ctx.strokeStyle='#1d1230';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(x,y,w,h,h/2);ctx.fill();ctx.stroke();
-    ctx.fillStyle='#1d1230';ctx.font=`${Math.round(.026*u)}px "Bungee", "Arial Black", system-ui`;ctx.textBaseline='middle';ctx.fillText(tx,x+w/2,y+h/2+1);ctx.textBaseline='alphabetic'}
-  if(fxi){ctx.font=`${Math.round(.022*u)}px "Bungee", "Arial Black", system-ui`;ctx.fillStyle=fxi.self?'#a8781a':'#7a52c7';ctx.fillText(fxi.txt,cx,top+.125*u)}
+  // their active effects as small icons
+  if(fxl&&fxl.length){const r=.022*u,gap=r*2+5,x0=cx-(Math.min(3,fxl.length)-1)*gap/2;fxl.slice(0,3).forEach((e,i)=>drawFxIcon(e,x0+i*gap,top+.125*u,r,now,u,false))}
+  ctx.restore();
+}
+function fxList(get){const l=[];for(const k in FX){const t=get(k);if(t>0)l.push({k,t})}return l.sort((a,b)=>a.t-b.t)}
+// one effect as a sticker icon; with a ring that drains as its time runs out
+function drawFxIcon(e,x,y,r,now,u,ring){
+  const f=FX[e.k],col=f.both?'#7df9ff':f.self?'#ffd400':'#b48cff';
+  ctx.save();ctx.translate(x,y);
+  if(ring){const frac=clamp(e.t/f.dur,0,1);
+    ctx.fillStyle='#1d1230';ctx.beginPath();ctx.arc(2,3,r+5,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,r+5,0,7);ctx.fill();
+    ctx.strokeStyle=col;ctx.lineWidth=4;ctx.lineCap='round';ctx.beginPath();ctx.arc(0,0,r+2.5,-Math.PI/2,-Math.PI/2+frac*Math.PI*2);ctx.stroke()}
+  const sc=r/(CR*u*1.25);ctx.save();ctx.scale(sc,sc);drawItem({t:e.k,x:0,y:0,w:0,nolabel:true},now,u);ctx.restore();
+  if(ring){const n=Math.ceil(e.t/1000),br=r*.55;ctx.fillStyle='#1d1230';ctx.beginPath();ctx.arc(r*.85,r*.85,br,0,7);ctx.fill();
+    ctx.fillStyle='#fff';ctx.font=`${Math.round(br*1.25)}px "Bungee", "Arial Black", system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(n),r*.85,r*.85+1);ctx.textBaseline='alphabetic'}
+  ctx.restore();
+}
+// the shared multiplier: big, top centre, only while it is above x1
+function drawMult(now,u){
+  const m=sharedMult();if(m<=1)return;
+  if(m!==drawMult.last){drawMult.last=m;drawMult.at=now}
+  const p=backOut((now-(drawMult.at||0))/380),sc=.6+.4*p,y=Math.max(64,.16*u),R=.075*u;
+  ctx.save();ctx.translate(W/2,y);ctx.rotate(-.08+Math.sin(now/600)*.03);ctx.scale(sc,sc);
+  ctx.fillStyle='#1d1230';ctx.beginPath();ctx.arc(3,5,R+5,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,R+5,0,7);ctx.fill();
+  ctx.fillStyle='#ffd400';ctx.strokeStyle='#1d1230';ctx.lineWidth=3.5;ctx.beginPath();ctx.arc(0,0,R,0,7);ctx.fill();ctx.stroke();
+  ctx.font=`${Math.round(R*.95)}px "Bungee", "Arial Black", system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.lineWidth=4;ctx.strokeStyle='#fff';ctx.strokeText('×'+m,0,2);ctx.fillStyle='#ff3d8b';ctx.fillText('×'+m,0,2);ctx.textBaseline='alphabetic';
   ctx.restore();
 }
 function drawBoard(now,u){
+  drawMult(now,u);
   if(S.mode==='solo'){
-    drawSide(u*.16,'you',myColor(),myStat(now),S.lost,S.mult,activeFx(k=>k==='banana'?bananaLeft(now):(S.fx[k]||0)-now,S.stk,raining(now),now),popAt.sMe,now,u,false);
-    drawSide(u*.84,'best','#ffd400',null,best,1,null,0,now,u,true);return}
-  const me={who:'you',col:myColor(),stat:myStat(now),score:S.themLost,mult:S.mult,pop:popAt.sMe,
-    fx:activeFx(k=>k==='banana'?bananaLeft(now):(S.fx[k]||0)-now,S.stk,raining(now),now)};
-  const her={who:'them',col:theirColor(),stat:S.otherPeer?themStat(now):null,score:S.lost,mult:S.themMult,pop:popAt.sThem,
-    fx:S.otherPeer?activeFx(k=>k==='banana'?them.banana-now:(them.fx[k]||0)-now,them.stk,them.rain,now):null};
+    drawSide(u*.16,'you',myColor(),myStat(now),S.lost,fxList(k=>k==='banana'?bananaLeft(now):(S.fx[k]||0)-now),popAt.sMe,now,u,false);
+    drawSide(u*.84,'best','#ffd400',null,best,null,0,now,u,true);return}
+  const me={who:'you',col:myColor(),stat:myStat(now),score:S.themLost,pop:popAt.sMe,fx:fxList(k=>k==='banana'?bananaLeft(now):(S.fx[k]||0)-now)};
+  const her={who:'them',col:theirColor(),stat:S.otherPeer?themStat(now):null,score:S.lost,pop:popAt.sThem,
+    fx:S.otherPeer?fxList(k=>k==='banana'?them.banana-now:(them.fx[k]||0)-now):null};
   const [L,R]=S.role==='a'?[me,her]:[her,me];
-  for(const [cx,P] of [[u*.16,L],[u*.84,R]])drawSide(cx,P.who,P.col,P.stat,P.score,P.mult,P.fx,P.pop,now,u,P===her);
+  for(const [cx,P] of [[u*.16,L],[u*.84,R]])drawSide(cx,P.who,P.col,P.stat,P.score,P.fx,P.pop,now,u,P===her);
 }
 const myStat=now=>({on:k=>on(k,now),stk:S.stk||1,bbl:S.bbl||1,mult:S.mult,banana:S.bananas.length>0||raining(now)});
 const themStat=now=>({on:k=>now<(them.fx[k]||0),stk:them.stk,bbl:them.bbl,mult:S.themMult,banana:now<them.banana});
@@ -827,7 +843,7 @@ function drawCookieShape(x,y,r,rot){
   ctx.stroke();ctx.restore();
 }
 let best=0;try{best=+localStorage.getItem('pp-best')||0}catch(e){}
-function soloPoint(){S.lost+=S.mult;if(S.lost>best){best=S.lost;try{localStorage.setItem('pp-best',best)}catch(e){}}paintHud();popChip('sMe')}
+function soloPoint(){S.lost+=sharedMult();if(S.lost>best){best=S.lost;try{localStorage.setItem('pp-best',best)}catch(e){}}paintHud();popChip('sMe')}
 function paintHud(){
   if(S.mode==='solo'){   // practice: your points this rally, and your best ever on this phone
     $('sMe').textContent='points '+S.lost;$('sThem').textContent='best '+best;$('mMe').textContent=S.mult>1?'\u00d7'+S.mult:'';$('mThem').textContent='';
