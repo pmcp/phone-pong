@@ -84,7 +84,7 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
     </div>
     <p class="err" id="err" hidden></p>
     <button class="ghost" id="btnSolo">Practice alone</button>
-    <p class="small" id="ver">v24</p>
+    <p class="small" id="ver">v25</p>
   </div>
 </div>
 
@@ -133,7 +133,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=24;   // also shown on the start screen
+const VER=25;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -613,14 +613,29 @@ function drawPaddle(cx,top,sc,st,col,now,u,sq){
   if(drunk)for(let i=0;i<6;i++){const ph=(now/1300+i/6)%1,bx=Math.sin(i*2.3+now/600)*hw*.8,by=t-ph*.13*U,br=(.006+.004*(i%3))*U*(.6+ph);
     ctx.globalAlpha=1-ph;ctx.fillStyle='rgba(255,255,255,.8)';ctx.strokeStyle='#b07ad6';ctx.lineWidth=Math.max(1,1.5*sc*2);ctx.beginPath();ctx.arc(bx,by,br,0,7);ctx.fill();ctx.stroke()}
   ctx.globalAlpha=1;
-  // sticky: goo drips underneath
-  if(st.on('sticky')){const n=st.stk>1?5:3;ctx.fillStyle='#c9a2ff';ctx.strokeStyle=ink;ctx.lineWidth=1.5*Math.max(.6,sc);
+  // aura: gold glow = an upgrade is active, purple dashed ring = a downgrade is active
+  const buff=big||st.on('bigball')||st.on('sticky'),debuff=mini||round||drunk||st.on('reverse')||st.on('smallball');
+  const aura=pad=>{ctx.beginPath();round?ctx.arc(0,fy,R+pad,0,7):ctx.roundRect(-hw-pad,-pad,hw*2+pad*2,b+pad*2,(b+pad*2)/2)};
+  if(buff){const pad=.012*U;ctx.fillStyle=`rgba(255,216,110,${.25+.12*Math.sin(now/220)})`;aura(pad);ctx.fill();ctx.strokeStyle='rgba(232,170,40,.9)';ctx.lineWidth=Math.max(1,2.5*sc);aura(pad);ctx.stroke()}
+  if(debuff){const pad=(buff?.028:.014)*U;ctx.save();ctx.setLineDash([6*Math.max(.5,sc),5*Math.max(.5,sc)]);ctx.lineDashOffset=-now/40;ctx.strokeStyle='#9b6bff';ctx.lineWidth=Math.max(1,2.5*sc);aura(pad);ctx.stroke();ctx.restore()}
+  // sticky (flat paddle): goo drips underneath
+  if(st.on('sticky')&&!round){const n=st.stk>1?5:3;ctx.fillStyle='#c9a2ff';ctx.strokeStyle=ink;ctx.lineWidth=1.5*Math.max(.6,sc);
     for(let i=0;i<n;i++){const dx=(n===1?0:(i/(n-1)-.5))*hw*1.4,L=(.012+.008*Math.sin(now/380+i*1.7))*U*(st.stk>1?1.7:1),r=.007*U;
       ctx.beginPath();ctx.moveTo(dx-r,b-r*.5);ctx.quadraticCurveTo(dx-r,b+L,dx,b+L+r);ctx.quadraticCurveTo(dx+r,b+L,dx+r,b-r*.5);ctx.closePath();ctx.fill();ctx.stroke()}}
   // body
   ctx.fillStyle='rgba(91,58,74,.12)';ctx.beginPath();round?ctx.arc(3,fy+5,R,0,7):ctx.roundRect(-hw+3,5,hw*2,b,b/2);ctx.fill();
   ctx.fillStyle=col;ctx.strokeStyle=ink;ctx.lineWidth=2.5*Math.max(.6,sc);ctx.beginPath();round?ctx.arc(0,fy,R,0,7):ctx.roundRect(-hw,0,hw*2,b,b/2);ctx.fill();ctx.stroke();
-  if(st.on('sticky')){ctx.fillStyle='rgba(201,162,255,.55)';ctx.beginPath();round?ctx.arc(0,fy+R*.35,R*.7,0,Math.PI):ctx.roundRect(-hw+2,b*.55,hw*2-4,b*.45-1,b/4);ctx.fill()}
+  if(st.on('sticky')&&!round){ctx.fillStyle='rgba(201,162,255,.55)';ctx.beginPath();ctx.roundRect(-hw+2,b*.55,hw*2-4,b*.45-1,b/4);ctx.fill()}
+  // sticky (round paddle): purple goo poured over the top, dripping down the sides
+  if(st.on('sticky')&&round){const sup=st.stk>1,edge=fy-R*(sup?.05:.3);
+    ctx.save();ctx.beginPath();ctx.arc(0,fy,R,0,7);ctx.clip();
+    ctx.fillStyle=sup?'#b98cff':'#c9a2ff';ctx.beginPath();ctx.moveTo(-R,fy-R);ctx.lineTo(R,fy-R);ctx.lineTo(R,edge);
+    const n=sup?5:3;for(let i=n;i>=0;i--){const x=-R+2*R*i/n,dy=(i%2?R*.12:0)+Math.sin(now/400+i)*R*.03;ctx.lineTo(x,edge+dy)}
+    ctx.closePath();ctx.fill();
+    for(let i=0;i<n;i++){const x=-R*.7+1.4*R*i/Math.max(1,n-1),L=R*(.18+.1*Math.sin(now/380+i*1.7))*(sup?1.5:1),r=R*.09;
+      ctx.beginPath();ctx.moveTo(x-r,edge);ctx.quadraticCurveTo(x-r,edge+L,x,edge+L+r);ctx.quadraticCurveTo(x+r,edge+L,x+r,edge);ctx.closePath();ctx.fill()}
+    ctx.fillStyle='rgba(255,255,255,.45)';ctx.beginPath();ctx.ellipse(-R*.35,fy-R*.62,R*.18,R*.08,-.4,0,7);ctx.fill();
+    ctx.restore();ctx.strokeStyle=ink;ctx.lineWidth=2.5*Math.max(.6,sc);ctx.beginPath();ctx.arc(0,fy,R,0,7);ctx.stroke()}
   ctx.fillStyle='rgba(255,255,255,.55)';ctx.beginPath();ctx.ellipse(-hw*.55,fy-(b-t)*.18,Math.max(2,hw*.16),Math.max(1.5,(b-t)*.13),0,0,7);ctx.fill();
   // face
   const fs=round?R*.55:(b-t)*.9,ex=round?R*.32:Math.min(hw*.45,fs*.65);
