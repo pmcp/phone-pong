@@ -73,7 +73,7 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
     </div>
     <p class="err" id="err" hidden></p>
     <button class="ghost" id="btnSolo">Practice alone</button>
-    <p class="small" id="ver">v14</p>
+    <p class="small" id="ver">v15</p>
   </div>
 </div>
 
@@ -113,7 +113,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=14;   // also shown on the start screen
+const VER=15;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -122,7 +122,8 @@ const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,o
 const hitSpeed=()=>Math.min(2.7,1.0*(1+.45*((S.mult-1)+(S.themMult-1))));
 function rescaleBall(){const b=S.ball;if(!b)return;const sp=Math.hypot(b.vx,b.vy)||1,k=hitSpeed()/sp;b.vx*=k;b.vy*=k}
 const HOLD=2500;   // ms you may keep the ball stuck to your paddle
-const PW=.3, PY=()=>H-.2, BR=.04, CR=.05;
+const Z=.78;   // zoom: everything on the table is drawn this much smaller, giving more room
+const PW=.3*Z, PY=()=>H-.2, BR=.04*Z, CR=.05*Z;
 // power-ups: self = helps you; the rest are thrown across the net at your partner
 const FX={
   big:    {dur:10000,self:1,label:'BIG',     take:'\u3067\u304b\u3044! big paddle'},
@@ -144,7 +145,7 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 function setDir(b,vx,vy,sp){const s=Math.sign(vy)||-1;vx=clamp(vx,-.92*sp,.92*sp);b.vx=vx;b.vy=s*Math.sqrt(Math.max(0,sp*sp-vx*vx))}
 const ballR=(b,now)=>BR*(on('bigball',now)?[1,1.8,2.6,3.3][S.bbl||1]:1)*(on('smallball',now)?.5:1);  // shrinks as the rally goes on
 const padW=now=>PW*(on('big',now)?1.6:1)*(on('mini',now)?.55:1);
-const roundR=now=>.075*(on('big',now)?1.4:1)*(on('mini',now)?.6:1);
+const roundR=now=>.075*Z*(on('big',now)?1.4:1)*(on('mini',now)?.6:1);
 const myColor=()=>S.role==='a'?PINK:MINT, theirColor=()=>S.role==='a'?MINT:PINK;
 
 /* ---------- input ---------- */
@@ -344,13 +345,13 @@ function step(now){
     if(b.x>1-rb){b.x=1-rb;b.vx=-Math.abs(b.vx);b.spin=(b.spin||0)*-.5;b.sq=.6;burst(1,b.y,'#f6c4d4',4,'dot',.35);blip(400,.04)}
     // banana peel: the ball slips and shoots off in a new direction
     const bn=S.banana;
-    if(bn&&now<bn.until&&Math.hypot(b.x-bn.x,b.y-bn.y)<rb+.045){
+    if(bn&&now<bn.until&&Math.hypot(b.x-bn.x,b.y-bn.y)<rb+.045*Z){
       const sp=Math.hypot(b.vx,b.vy),a=(Math.random()-.5)*2.2,dn=b.vy>0?1:-1;
       b.vx=Math.sin(a)*sp;b.vy=dn*Math.cos(a)*sp;S.banana=null;
       buzz([20,20,20]);blip(180,.18,'sawtooth',.1);flash('\u3064\u308b\u3063!',900);
     }
     if(isRound){
-      const R=roundR(now),cx=S.paddleX,cy=py+.03,dx=b.x-cx,dy=b.y-cy,d=Math.hypot(dx,dy)||1;
+      const R=roundR(now),cx=S.paddleX,cy=py+.03*Z,dx=b.x-cx,dy=b.y-cy,d=Math.hypot(dx,dy)||1;
       if(d<R+rb&&b.vx*dx+b.vy*dy<0){
         const nx=dx/d,ny=dy/d,dot=b.vx*nx+b.vy*ny;
         let vx=b.vx-2*dot*nx,vy=b.vy-2*dot*ny;
@@ -474,7 +475,7 @@ function draw(now){
     const urgent=left<.3,jit=urgent?Math.sin(now/30)*1.5:0;
     ctx.fillStyle='rgba(255,253,251,.9)';ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(bx+jit,by,bw,bh,bh/2);ctx.fill();ctx.stroke();
     if(left>0){ctx.fillStyle=urgent?'#ff6f93':left<.6?'#ffd86e':MINT;ctx.beginPath();ctx.roundRect(bx+jit+2,by+2,(bw-4)*left,bh-4,(bh-4)/2);ctx.fill()}}
-  if(S.banana)drawBanana(S.banana.x*u,S.banana.y*u,.045*u,Math.sin(now/400)*.15);
+  if(S.banana)drawBanana(S.banana.x*u,S.banana.y*u,.045*Z*u,Math.sin(now/400)*.15);
   for(const k of S.cookies){const sc=backOut((now-k.born)/380),x=k.x*u,y=k.y*u,al=clamp((PY()-k.y)/.3,0,1);
     const self=k.t==='cookie'||(FX[k.t]&&FX[k.t].self),glow=self?'255,216,110':'201,162,255',ph=now/1000+k.w;
     // soft pulsing halo
@@ -532,8 +533,8 @@ function drawPaddle(cx,top,sc,st,col,now,u,sq){
   ctx.save();ctx.translate(cx,top);if(drunk)ctx.rotate(Math.sin(now/300)*.12);
   // body geometry, relative to the paddle's top centre
   let hw,t,b,fy,R=0;
-  if(round){R=.075*(big?1.4:1)*(mini?.6:1)*U*(1+sq*.06);fy=.03*U;hw=R;t=fy-R;b=fy+R}
-  else{const w=PW*(big?1.6:1)*(mini?.55:1)*U*(1+sq*.14),h=.055*U*(1-sq*.35);hw=w/2;t=0;b=h;fy=h*.5}
+  if(round){R=.075*Z*(big?1.4:1)*(mini?.6:1)*U*(1+sq*.06);fy=.03*Z*U;hw=R;t=fy-R;b=fy+R}
+  else{const w=PW*(big?1.6:1)*(mini?.55:1)*U*(1+sq*.14),h=.055*Z*U*(1-sq*.35);hw=w/2;t=0;b=h;fy=h*.5}
   // drunk: bubbles drifting up
   if(drunk)for(let i=0;i<6;i++){const ph=(now/1300+i/6)%1,bx=Math.sin(i*2.3+now/600)*hw*.8,by=t-ph*.13*U,br=(.006+.004*(i%3))*U*(.6+ph);
     ctx.globalAlpha=1-ph;ctx.fillStyle='rgba(255,255,255,.8)';ctx.strokeStyle='#b07ad6';ctx.lineWidth=Math.max(1,1.5*sc*2);ctx.beginPath();ctx.arc(bx,by,br,0,7);ctx.fill();ctx.stroke()}
