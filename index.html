@@ -84,7 +84,7 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
     </div>
     <p class="err" id="err" hidden></p>
     <button class="ghost" id="btnSolo">Practice alone</button>
-    <p class="small" id="ver">v28</p>
+    <p class="small" id="ver">v29</p>
   </div>
 </div>
 
@@ -133,7 +133,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=28;   // also shown on the start screen
+const VER=29;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -146,7 +146,7 @@ const bananaLeft=now=>Math.max(0,S.rain.until-now,...S.bananas.map(b=>b.until-no
 const raining=now=>now<S.rain.until;
 // two holes at random spots on this half, far enough apart; in one, out the other
 const PR=.045;
-function makePortals(){if(S.mode==='online')return {a:{x:.15+Math.random()*.7,y:H*(.12+Math.random()*.45)},b:null,cd:0};let a,b;do{a={x:.15+Math.random()*.7,y:H*(.12+Math.random()*.62)};b={x:.15+Math.random()*.7,y:H*(.12+Math.random()*.62)}}while(Math.hypot(a.x-b.x,a.y-b.y)<.45);return {a,b,cd:0}}
+function makePortals(exit){if(S.mode==='online')return {a:{x:.15+Math.random()*.7,y:H*(.12+Math.random()*.45)},b:null,out:!!exit,cd:0};let a,b;do{a={x:.15+Math.random()*.7,y:H*(.12+Math.random()*.62)};b={x:.15+Math.random()*.7,y:H*(.12+Math.random()*.62)}}while(Math.hypot(a.x-b.x,a.y-b.y)<.45);return {a,b,cd:0}}
 const slotCap=t=>t==='sticky'?2:3;   // how many of one kind a slot can stack
 const HOLD=2500;   // ms you may keep the ball stuck to your paddle
 const Z=.78;   // zoom: everything on the table is drawn this much smaller, giving more room
@@ -162,7 +162,7 @@ const FX={
   drunk:  {dur:8000, label:'DRUNK', take:'\u304b\u3093\u3071\u3044! drunk ball for them',   got:'\u3075\u3089\u3075\u3089\u2026 drunk ball!'},
   reverse:{dur:7000, label:'SWAP',  take:'\u3078\u3078! swapped controls for them', got:'\u3042\u308c? controls swapped!'},
   tron:   {dur:9000,both:1,label:'STROBO',take:'\u30b9\u30c8\u30ed\u30dc! STROBO for both',got:'\u30b9\u30c8\u30ed\u30dc! STROBO!'},
-  portal: {dur:10000,both:1,label:'PORTAL',take:'\u30ef\u30fc\u30d7! portals open',got:'\u30ef\u30fc\u30d7! portals open'},
+  portal: {dur:10000,both:1,label:'PORTAL',take:'\u30ef\u30fc\u30d7! shortcut to them',got:'\u30ef\u30fc\u30d7! a portal opens\u2026'},
   banana: {dur:12000,label:'BANANA',take:'\u307d\u3044\u3063! banana thrown',           got:'\u30d0\u30ca\u30ca! watch out'},
 };
 const on=(k,now)=>now<(S.fx[k]||0);
@@ -258,7 +258,7 @@ function getZap(k,n=1){
   const f=FX[k];if(!f||f.self)return;   // (TRON arrives here too: f.both)
   const now=performance.now();
   if(k==='banana'&&n>1)S.rain={until:now+(n>=3?11000:8000),lvl:n,next:now};   // BANANA RAIN
-  else if(k==='portal'){S.fx.portal=now+f.dur*n;S.portals=makePortals()}
+  else if(k==='portal'){S.fx.portal=now+f.dur*n;S.portals=makePortals(true)}
   else if(k==='banana')S.bananas.push({x:.2+Math.random()*.6,y:H*(.3+Math.random()*.25),vy:0,until:now+f.dur,w:Math.random()*6});
   else S.fx[k]=now+f.dur*n;
   pub();buzz([40,30,40]);blip(300,.2,'triangle');flash(k==='banana'&&n>1?'\u30d0\u30ca\u30ca\u306e\u96e8! BANANA RAIN!':f.got+(n>1?' \u00d7'+n:''),1500);S.shake=Math.max(S.shake,.7);
@@ -273,7 +273,7 @@ function receive(o){
   // their top edge is our top edge; mirror x because the phones face each other
   const x=Math.min(1-BR,Math.max(BR,1-(+o.x||.5)));
   S.ball={x,y:-BR,vx:Math.max(-2.6,Math.min(2.6,-(+o.vx||0))),vy:Math.min(2.8,Math.abs(+o.vy||1)),r:Math.min(30,+o.r||0),spin:clamp(-(+o.s||0),-4,4)};rescaleBall();
-  if(o.w&&S.portals&&S.portals.a){const P=S.portals,b=S.ball,vy=clamp(+o.vy||1,-2.8,2.8),sp=Math.hypot(b.vx,vy)||1;
+  if(o.w&&S.portals&&S.portals.a){const P=S.portals,b=S.ball,vy=clamp(Math.abs(+o.vy||1),.4,2.8),sp=Math.hypot(b.vx,vy)||1;
     b.vy=vy;rescaleBall();b.x=clamp(P.a.x+b.vx/sp*(PR+.03),BR,1-BR);b.y=P.a.y+b.vy/sp*(PR+.03);b.sq=1;P.cd=performance.now()+600;
     burst(P.a.x,P.a.y,'#4fd1c5',18,'star',1);blip(1040,.12,'sine',.1);buzz(20)}
   S.trail=[];
@@ -385,7 +385,7 @@ function step(now){
     if(b.x>1-rb){b.x=1-rb;b.vx=-Math.abs(b.vx);b.spin=(b.spin||0)*-.5;b.sq=.6;burst(1,b.y,'#f6c4d4',4,'dot',.35);blip(400,.04)}
     // banana peel: the ball slips and shoots off in a new direction
     if(S.portals&&on('portal',now)&&now>S.portals.cd){const P=S.portals;
-      if(!P.b&&Math.hypot(b.x-P.a.x,b.y-P.a.y)<PR+rb*.5){   // online: warp to the hole on the other phone
+      if(!P.b&&!P.out&&Math.hypot(b.x-P.a.x,b.y-P.a.y)<PR+rb*.5){   // online: one-way, my entry hole to her exit hole
         burst(P.a.x,P.a.y,'#9b6bff',18,'star',.9);blip(520,.12,'sine',.1);setTimeout(()=>blip(1040,.12,'sine',.1),90);buzz(20);
         P.cd=now+600;sendAcross(b,true)}
       else if(P.b)for(const [p,q] of [[P.a,P.b],[P.b,P.a]])if(Math.hypot(b.x-p.x,b.y-p.y)<PR+rb*.5){
@@ -528,7 +528,7 @@ function draw(now){
     const urgent=left<.3,jit=urgent?Math.sin(now/30)*1.5:0;
     ctx.fillStyle='rgba(255,253,251,.9)';ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(bx+jit,by,bw,bh,bh/2);ctx.fill();ctx.stroke();
     if(left>0){ctx.fillStyle=urgent?'#ff6f93':left<.6?'#ffd86e':MINT;ctx.beginPath();ctx.roundRect(bx+jit+2,by+2,(bw-4)*left,bh-4,(bh-4)/2);ctx.fill()}}
-  if(S.portals)for(const [p,c1,c2] of [[S.portals.a,'#9b6bff','#e3d6ff'],[S.portals.b,'#2bb5a7','#d2f5f0']])if(p){
+  if(S.portals)for(const [p,c1,c2] of [[S.portals.a,...(S.portals.out?['#2bb5a7','#d2f5f0']:['#9b6bff','#e3d6ff'])],[S.portals.b,'#2bb5a7','#d2f5f0']])if(p){
     const x=p.x*u,y=p.y*u,R=PR*u*(1+.06*Math.sin(now/200));
     ctx.save();ctx.translate(x,y);
     ctx.fillStyle='rgba(40,20,60,.85)';ctx.beginPath();ctx.ellipse(0,0,R,R*.9,0,0,7);ctx.fill();
