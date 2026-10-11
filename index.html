@@ -62,7 +62,7 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
 <body>
 
 <canvas id="c"></canvas>
-<div class="top" id="topHint" hidden>&#x2191; &#x30cd;&#x30c3;&#x30c8; &#xb7; the net &#x2191;</div>
+<div class="top" id="topHint" hidden>&#x2191; the net &#x2191;</div>
 <div id="safeProbe" style="position:fixed;bottom:0;height:env(safe-area-inset-bottom,0px);width:0;pointer-events:none"></div>
 <div class="hud" id="hud" hidden>
   <div class="chip"><span class="dot" id="meDot"></span><span id="sMe">0</span><span class="mult" id="mMe"></span></div>
@@ -72,8 +72,8 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
 <div class="ov" id="lobby">
   <div class="panel">
     <h1>Phone<br>Pong</h1>
-    <p class="jp">&#x3075;&#x305f;&#x308a;&#x3067;&#x30d4;&#x30f3;&#x30dd;&#x30f3; &#x2661;</p>
-    <p>Two phones, one table. Put them top to top and the ball flies from your screen onto theirs.</p>
+    <p class="jp">Two phones, one table</p>
+    <p>Put the phones top to top. The ball flies from your screen onto theirs.</p>
     <button id="btnCreate">Start a table</button>
     <div class="row">
       <input id="codeIn" maxlength="4" placeholder="CODE" autocomplete="off" aria-label="Table code">
@@ -84,13 +84,13 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
     </div>
     <p class="err" id="err" hidden></p>
     <button class="ghost" id="btnSolo">Practice alone</button>
-    <p class="small" id="ver">v29</p>
+    <p class="small" id="ver">v30</p>
   </div>
 </div>
 
 <div class="ov" id="waiting" hidden>
   <div class="panel">
-    <p class="jp">&#x307e;&#x3063;&#x3066;&#x306d;&#x2026;</p>
+    <p class="jp">Waiting for player 2</p>
     <p>Let your partner scan this, or tell them the code:</p>
     <div class="qr" id="qr" aria-label="QR code to join"></div>
     <div class="code" id="codeOut">----</div>
@@ -101,7 +101,7 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
 
 <div class="ov" id="scanOv" hidden>
   <div class="panel">
-    <p class="jp">&#x3088;&#x307f;&#x3053;&#x307f;&#x4e2d;&#x2026;</p>
+    <p class="jp">Scanning</p>
     <div class="scanbox"><video id="scanVid" playsinline muted></video></div>
     <p class="small" id="scanMsg">Point the camera at your partner&#x2019;s QR code.</p>
     <button class="ghost" id="btnScanCancel">Cancel</button>
@@ -109,7 +109,7 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
 </div>
 <div class="ov" id="endOv" hidden>
   <div class="panel">
-    <p class="big" id="endBig">&#x3084;&#x3063;&#x305f;!</p>
+    <p class="big" id="endBig">You win!</p>
     <p id="endTxt"></p>
     <button id="btnRematch">Play again</button>
     <button class="ghost" id="btnLeave">Leave table</button>
@@ -133,7 +133,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=29;   // also shown on the start screen
+const VER=30;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -153,17 +153,17 @@ const Z=.78;   // zoom: everything on the table is drawn this much smaller, givi
 const PW=.3*Z, PY=()=>Math.min(H-.2,(Hpx-SB-12-2*Math.min(34,W*.085)-18)/W-.055*Z), BR=.04*Z, CR=.05*Z;
 // power-ups: self = helps you; the rest are thrown across the net at your partner
 const FX={
-  big:    {dur:10000,self:1,label:'BIG',     take:'\u3067\u304b\u3044! big paddle'},
-  sticky: {dur:12000,self:1,label:'STICKY',  take:'\u306d\u3070\u306d\u3070! sticky paddle'},
-  bigball:{dur:10000,self:1,label:'BIG BALL',take:'\u3067\u3063\u304b\u3044! big ball'},
-  mini:   {dur:8000, label:'TINY',  take:'\u3048\u3044\u3063! tiny paddle for them',   got:'\u3061\u3073\u2026 tiny paddle!'},
-  round:  {dur:8000, label:'ROUND', take:'\u307e\u308b! round paddle for them',     got:'\u307e\u308b\u2026 round paddle!'},
-  smallball:{dur:8000,label:'TINY BALL',take:'\u307d\u3061\u3063! tiny ball for them',got:'\u3061\u3063\u3061\u3083\u2026 tiny ball!'},
-  drunk:  {dur:8000, label:'DRUNK', take:'\u304b\u3093\u3071\u3044! drunk ball for them',   got:'\u3075\u3089\u3075\u3089\u2026 drunk ball!'},
-  reverse:{dur:7000, label:'SWAP',  take:'\u3078\u3078! swapped controls for them', got:'\u3042\u308c? controls swapped!'},
-  tron:   {dur:9000,both:1,label:'STROBO',take:'\u30b9\u30c8\u30ed\u30dc! STROBO for both',got:'\u30b9\u30c8\u30ed\u30dc! STROBO!'},
-  portal: {dur:10000,both:1,label:'PORTAL',take:'\u30ef\u30fc\u30d7! shortcut to them',got:'\u30ef\u30fc\u30d7! a portal opens\u2026'},
-  banana: {dur:12000,label:'BANANA',take:'\u307d\u3044\u3063! banana thrown',           got:'\u30d0\u30ca\u30ca! watch out'},
+  big:    {dur:10000,self:1,label:'BIG',     take:'Big paddle!'},
+  sticky: {dur:12000,self:1,label:'STICKY',  take:'Sticky paddle!'},
+  bigball:{dur:10000,self:1,label:'BIG BALL',take:'Big ball!'},
+  mini:   {dur:8000, label:'TINY',  take:'Tiny paddle sent',   got:'Tiny paddle!'},
+  round:  {dur:8000, label:'ROUND', take:'Round paddle sent',     got:'Round paddle!'},
+  smallball:{dur:8000,label:'TINY BALL',take:'Tiny ball sent',got:'Tiny ball!'},
+  drunk:  {dur:8000, label:'DRUNK', take:'Drunk ball sent',   got:'Drunk ball!'},
+  reverse:{dur:7000, label:'SWAP',  take:'Swap sent', got:'Controls swapped!'},
+  tron:   {dur:9000,both:1,label:'STROBO',take:'STROBO!',got:'STROBO!'},
+  portal: {dur:10000,both:1,label:'PORTAL',take:'Portal open',got:'Incoming portal!'},
+  banana: {dur:12000,label:'BANANA',take:'Banana thrown',           got:'Banana! Watch out'},
 };
 const on=(k,now)=>now<(S.fx[k]||0);
 // the paddle is rough: moving it while you hit puts spin on the ball. STICKY adds grip; at x3 the ball sticks
@@ -229,7 +229,7 @@ function setup(c){
   conn=c;
   c.on('open',()=>pub());
   c.on('data',d=>{if(d&&typeof d==='object')onOther(d)});
-  c.on('close',()=>{if(conn===c){conn=null;S.otherPeer=null;S.ball=null;if(S.mode==='online'){flash('partner left\u2026 \u307e\u3063\u3066\u306d',3000);if(S.role==='a')$('waiting').hidden=false}}});
+  c.on('close',()=>{if(conn===c){conn=null;S.otherPeer=null;S.ball=null;if(S.mode==='online'){flash('Partner left',3000);if(S.role==='a')$('waiting').hidden=false}}});
 }
 
 function onOther(pr){
@@ -261,7 +261,7 @@ function getZap(k,n=1){
   else if(k==='portal'){S.fx.portal=now+f.dur*n;S.portals=makePortals(true)}
   else if(k==='banana')S.bananas.push({x:.2+Math.random()*.6,y:H*(.3+Math.random()*.25),vy:0,until:now+f.dur,w:Math.random()*6});
   else S.fx[k]=now+f.dur*n;
-  pub();buzz([40,30,40]);blip(300,.2,'triangle');flash(k==='banana'&&n>1?'\u30d0\u30ca\u30ca\u306e\u96e8! BANANA RAIN!':f.got+(n>1?' \u00d7'+n:''),1500);S.shake=Math.max(S.shake,.7);
+  pub();buzz([40,30,40]);blip(300,.2,'triangle');flash(k==='banana'&&n>1?'BANANA RAIN!':f.got+(n>1?' \u00d7'+n:''),1500);S.shake=Math.max(S.shake,.7);
 }
 function maybeFirstServe(){
   if(S.role==='a'&&S.otherPeer&&S.otherGame===S.game&&S.served!==S.game&&!S.ball&&!gameOver()){
@@ -300,21 +300,21 @@ function serve(){
 function gameOver(){return S.mode==='online'&&(S.lost>=WIN||S.themLost>=WIN)}
 function onPoint(mine,v){
   paintHud();
-  if(mine){for(let i=0;i<3;i++)burst(.2+i*.3,.15,[PINK,MINT,'#ffd86e'][i],10,'heart',.9);popChip('sMe');buzz([20,40,20]);blip(880,.12);blip(1320,.18);flash('\u3044\u3044\u306d! +'+(v||1),1200)}
+  if(mine){for(let i=0;i<3;i++)burst(.2+i*.3,.15,[PINK,MINT,'#ffd86e'][i],10,'star',.9);popChip('sMe');buzz([20,40,20]);blip(880,.12);blip(1320,.18);flash('+'+(v||1),1200)}
   if(gameOver())return endGame();
 }
 function miss(){
   if(S.ball)burst(S.ball.x,H,'#5b3a4a',10,'dot',.6);S.shake=1;
   S.ball=null;
-  if(S.mode==='solo'){S.lost=0;S.mult=1;paintHud();flash('\u304a\u3063\u3068! again',1000);S.serveAt=performance.now()+900;return}
+  if(S.mode==='solo'){S.lost=0;S.mult=1;paintHud();flash('Missed',1000);S.serveAt=performance.now()+900;return}
   S.lost+=S.themMult;S.mult=1;pub();popChip('sThem');buzz(120);blip(220,.25,'sawtooth',.08);paintHud();
   if(gameOver())return endGame();
-  flash('\u304a\u3063\u3068\u2026 your serve',1100);S.serveAt=performance.now()+1300;
+  flash('Missed. Your serve',1100);S.serveAt=performance.now()+1300;
 }
 function endGame(){
   S.ball=null;S.serveAt=0;
   const won=S.themLost>=WIN;
-  $('endBig').textContent=won?'\u3084\u3063\u305f!':'\u3056\u3093\u306d\u3093\u2026';
+  $('endBig').textContent=won?'You win!':'You lose';
   $('endTxt').textContent=won?`You win ${S.themLost} \u2013 ${S.lost}. Victory dance allowed.`:`They win ${S.lost} \u2013 ${S.themLost}. Rematch?`;
   $('endOv').hidden=false;
 }
@@ -349,9 +349,9 @@ function useSlot(i){
   else if(f.both){S.fx[t]=now+f.dur*n;if(t==='portal')S.portals=makePortals();if(S.mode!=='solo'){S.zapN++;S.zapK=t;S.zapM=n;pub()}}   // TRON: lights out on both phones
   else if(S.mode==='solo')getZap(t,n);   // practice: no partner, so it lands on you
   else{S.zapN++;S.zapK=t;S.zapM=n;pub()}
-  const p=slotPos(i);burst(p.x/W,p.y/W,f.self?'#ffd86e':'#c9a2ff',18,f.self?'star':'heart',1.2);S.shake=Math.max(S.shake,.3);
+  const p=slotPos(i);burst(p.x/W,p.y/W,f.self?'#ffd86e':'#c9a2ff',18,'star',1.2);S.shake=Math.max(S.shake,.3);
   buzz([15,25,15]);blip(660,.08,'square',.08);setTimeout(()=>blip(990,.1,'square',.08),70);
-  flash(t==='sticky'&&S.stk>1?'SUPER STICKY! hold to stick':t==='banana'&&n>1?'\u307d\u3044\u3063! BANANA RAIN for them':f.take+(t==='bigball'&&S.bbl>1?' \u00d7'+S.bbl:'')+(n>1&&t!=='bigball'?' \u00d7'+n:''),1400);
+  flash(t==='sticky'&&S.stk>1?'SUPER STICKY! hold to stick':t==='banana'&&n>1?'Banana rain sent':f.take+(t==='bigball'&&S.bbl>1?' \u00d7'+S.bbl:'')+(n>1&&t!=='bigball'?' \u00d7'+n:''),1400);
 }
 function hitPaddle(b){
   b.r=(b.r||0)+1;b.sq=1;burst(b.x,b.y+ballR(b,performance.now()),myColor(),7,'dot',.5);
@@ -396,7 +396,7 @@ function step(now){
     if(bn){
       const sp=Math.hypot(b.vx,b.vy),a=(Math.random()-.5)*2.2,dn=b.vy>0?1:-1;
       b.vx=Math.sin(a)*sp;b.vy=dn*Math.cos(a)*sp;S.bananas=S.bananas.filter(q=>q!==bn);burst(bn.x,bn.y,'#ffd84a',8,'dot',.5);
-      buzz([20,20,20]);blip(180,.18,'sawtooth',.1);flash('\u3064\u308b\u3063!',900);
+      buzz([20,20,20]);blip(180,.18,'sawtooth',.1);flash('Slip!',900);
     }
     if(isRound){
       const R=roundR(now),cx=S.paddleX,cy=py+.03*Z,dx=b.x-cx,dy=b.y-cy,d=Math.hypot(dx,dy)||1;
@@ -466,7 +466,7 @@ function burst(x,y,col,n,kind,power){
 }
 function collectFx(k){
   const col=k.t==='cookie'?'#e9b87c':(FX[k.t]&&FX[k.t].self?'#ffd86e':'#c9a2ff');
-  burst(k.x,k.y,col,16,k.t==='cookie'?'heart':'star',1.1);burst(k.x,k.y,'#fff',8,'dot',.8);
+  burst(k.x,k.y,col,16,'star',1.1);burst(k.x,k.y,'#fff',8,'dot',.8);
   S.parts.push({x:k.x,y:k.y,vx:0,vy:0,g:0,life:.35,max:.35,col,kind:'ring',sz:CR});
 }
 const popAt={sMe:0,sThem:0};function popChip(id){popAt[id]=performance.now()}
@@ -489,9 +489,6 @@ function draw(now){
   // polka dots
   ctx.fillStyle='rgba(255,143,177,.09)';
   for(let y=0;y<H+.2;y+=.16)for(let x=((y/.16)%2)*.08;x<1.05;x+=.16){ctx.beginPath();ctx.arc(x*u,y*u,.018*u,0,7);ctx.fill()}
-  // petals
-  ctx.fillStyle='rgba(255,170,200,.55)';
-  for(const p of petals){p.y+=p.s/60;if(p.y>H+.05){p.y=-.05;p.x=Math.random()}const x=(p.x+Math.sin(now/900+p.w)*.03)*u,y=p.y*u;ctx.save();ctx.translate(x,y);ctx.rotate(now/1200+p.w);ctx.beginPath();ctx.ellipse(0,0,p.r*u,p.r*u*.55,0,0,7);ctx.fill();ctx.restore()}
   // net at top
   ctx.fillStyle='#f6c4d4';
   for(let x=0;x<1;x+=.06){ctx.beginPath();ctx.roundRect(x*u+2,4,.035*u,8,4);ctx.fill()}
@@ -511,9 +508,6 @@ function draw(now){
     ctx.fillStyle=g;ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();ctx.stroke();
     ctx.save();ctx.beginPath();ctx.arc(x,y,r-1.5,0,7);ctx.clip();
     const P=(px,py)=>{const w=turn(onSphere(px,py));return {x:x+w[0]*r,y:y+w[1]*r,z:w[2]}};
-    // blush
-    ctx.fillStyle='rgba(255,143,177,.7)';
-    for(const s of[-1,1]){const p=P(s*.55,.25);if(p.z>0){const k=.35+.65*p.z;ctx.beginPath();ctx.ellipse(p.x,p.y,r*.18*k,r*.11*k,0,0,7);ctx.fill()}}
     // eyes
     for(const s of[-1,1]){const p=P(s*.35,-.05);if(p.z<=0)continue;const k=.35+.65*p.z;
       if(drunk){ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;const e=r*.13*k;ctx.beginPath();ctx.moveTo(p.x-e,p.y-e);ctx.lineTo(p.x+e,p.y+e);ctx.moveTo(p.x+e,p.y-e);ctx.lineTo(p.x-e,p.y+e);ctx.stroke()}
@@ -806,7 +800,7 @@ $('btnJoin').onclick=()=>{audio();const c=$('codeIn').value.trim().toUpperCase()
 $('btnScan').onclick=()=>{audio();startScan()};
 $('btnScanCancel').onclick=stopScan;
 $('codeIn').addEventListener('keydown',e=>{if(e.key==='Enter')$('btnJoin').click()});
-$('btnSolo').onclick=()=>{audio();S.mode='solo';S.lost=0;$('lobby').hidden=true;$('topHint').hidden=true;S.mult=1;paintHud();flash('practice \u2661',1200);S.serveAt=performance.now()+900};
+$('btnSolo').onclick=()=>{audio();S.mode='solo';S.lost=0;$('lobby').hidden=true;$('topHint').hidden=true;S.mult=1;paintHud();flash('Practice',1200);S.serveAt=performance.now()+900};
 function leave(){try{conn&&conn.close()}catch(e){}try{peer&&peer.destroy()}catch(e){}conn=null;peer=null;S.mode='lobby';S.ball=null;S.serveAt=0;S.otherPeer=null;
   $('waiting').hidden=true;$('endOv').hidden=true;$('hud').hidden=true;$('topHint').hidden=true;$('lobby').hidden=false}
 $('btnBack').onclick=leave;$('btnLeave').onclick=leave;
