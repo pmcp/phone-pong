@@ -139,7 +139,7 @@ input::placeholder{color:rgba(29,18,48,.45)}
     <div class="foot">
       <button class="ghost" id="btnHelp">How to play</button>
       <button class="ghost" id="btnSolo">Practice</button>
-      <span class="small" id="ver">v42</span>
+      <span class="small" id="ver">v43</span>
     </div>
   </div>
 </div>
@@ -240,7 +240,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=42;   // also shown on the start screen
+const VER=43;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -735,8 +735,8 @@ function drawFxIcon(e,x,y,r,now,u,ring){
 function drawMult(now,u){
   const m=sharedMult();if(m<=1)return;
   if(m!==drawMult.last){drawMult.last=m;drawMult.at=now}
-  const p=backOut((now-(drawMult.at||0))/380),sc=.6+.4*p,y=S.mode==='party'?Math.max(46,.11*u)+.2*u:Math.max(64,.16*u),R=S.mode==='party'?.05*u:.075*u;
-  ctx.save();ctx.translate(S.mode==='party'?W*.86:W/2,y);ctx.rotate(-.08+Math.sin(now/600)*.03);ctx.scale(sc,sc);
+  const p=backOut((now-(drawMult.at||0))/380),sc=.6+.4*p,y=S.mode==='party'?.36*u:Math.max(64,.16*u),R=.075*u;
+  ctx.save();ctx.translate(W/2,y);ctx.rotate(-.08+Math.sin(now/600)*.03);ctx.scale(sc,sc);
   ctx.fillStyle='#1d1230';ctx.beginPath();ctx.arc(3,5,R+5,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,R+5,0,7);ctx.fill();
   ctx.fillStyle='#ffd400';ctx.strokeStyle='#1d1230';ctx.lineWidth=3.5;ctx.beginPath();ctx.arc(0,0,R,0,7);ctx.fill();ctx.stroke();
   ctx.font=`${Math.round(R*.95)}px "Bungee", "Arial Black", system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';
@@ -1016,7 +1016,7 @@ function drawMap(now,u){
   ctx.restore();
 }
 function drawParty(now,u){
-  drawMult(now,u);drawPick(now,u);drawMap(now,u);
+  drawMult(now,u);drawPick(now,u);
   const n=P.n,top=Math.max(46,.11*u);
   for(let i=0;i<n;i++){const cx=u*(i+.5)/n,dead=P.lives[i]<=0,me=i===P.me;
     ctx.save();ctx.globalAlpha=dead?.35:me?1:.85;ctx.textAlign='center';ctx.fillStyle='#1d1230';
