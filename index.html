@@ -84,7 +84,7 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
     </div>
     <p class="err" id="err" hidden></p>
     <button class="ghost" id="btnSolo">Practice alone</button>
-    <p class="small" id="ver">v26</p>
+    <p class="small" id="ver">v27</p>
   </div>
 </div>
 
@@ -133,7 +133,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=26;   // also shown on the start screen
+const VER=27;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -146,7 +146,7 @@ const bananaLeft=now=>Math.max(0,S.rain.until-now,...S.bananas.map(b=>b.until-no
 const raining=now=>now<S.rain.until;
 // two holes at random spots on this half, far enough apart; in one, out the other
 const PR=.045;
-function makePortals(){let a,b;do{a={x:.15+Math.random()*.7,y:H*(.12+Math.random()*.62)};b={x:.15+Math.random()*.7,y:H*(.12+Math.random()*.62)}}while(Math.hypot(a.x-b.x,a.y-b.y)<.45);return {a,b,cd:0}}
+function makePortals(){if(S.mode==='online')return {a:{x:.15+Math.random()*.7,y:H*(.12+Math.random()*.45)},b:null,cd:0};let a,b;do{a={x:.15+Math.random()*.7,y:H*(.12+Math.random()*.62)};b={x:.15+Math.random()*.7,y:H*(.12+Math.random()*.62)}}while(Math.hypot(a.x-b.x,a.y-b.y)<.45);return {a,b,cd:0}}
 const slotCap=t=>t==='sticky'?2:3;   // how many of one kind a slot can stack
 const HOLD=2500;   // ms you may keep the ball stuck to your paddle
 const Z=.78;   // zoom: everything on the table is drawn this much smaller, giving more room
@@ -162,7 +162,7 @@ const FX={
   drunk:  {dur:8000, label:'DRUNK', take:'\u304b\u3093\u3071\u3044! drunk ball for them',   got:'\u3075\u3089\u3075\u3089\u2026 drunk ball!'},
   reverse:{dur:7000, label:'SWAP',  take:'\u3078\u3078! swapped controls for them', got:'\u3042\u308c? controls swapped!'},
   tron:   {dur:9000,both:1,label:'TRON',take:'\u30cd\u30aa\u30f3! lights out for both',got:'\u30cd\u30aa\u30f3! lights out!'},
-  portal: {dur:10000,label:'PORTAL',take:'\u30ef\u30fc\u30d7! portals for them',got:'\u30ef\u30fc\u30d7\u2026 portals!'},
+  portal: {dur:10000,both:1,label:'PORTAL',take:'\u30ef\u30fc\u30d7! portals open',got:'\u30ef\u30fc\u30d7! portals open'},
   banana: {dur:12000,label:'BANANA',take:'\u307d\u3044\u3063! banana thrown',           got:'\u30d0\u30ca\u30ca! watch out'},
 };
 const on=(k,now)=>now<(S.fx[k]||0);
@@ -192,7 +192,7 @@ cv.addEventListener('pointermove',e=>{if(S.padPtr===null||e.pointerId===S.padPtr
 /* ---------- direct phone-to-phone link (PeerJS / WebRTC) ---------- */
 let peer=null, conn=null;
 function showErr(t){$('err').textContent=t;$('err').hidden=!t}
-function pub(){if(conn&&conn.open){try{conn.send({role:S.role,game:S.game,lost:S.lost,mult:S.mult,out:{n:S.outN,x:S.outX||0,vx:S.outVx||0,vy:S.outVy||0,r:S.outR||0,s:S.outS||0},zap:{n:S.zapN,k:S.zapK,m:S.zapM||1},st:myStatus(),v:VER})}catch(e){}}}
+function pub(){if(conn&&conn.open){try{conn.send({role:S.role,game:S.game,lost:S.lost,mult:S.mult,out:{n:S.outN,x:S.outX||0,vx:S.outVx||0,vy:S.outVy||0,r:S.outR||0,s:S.outS||0,w:S.outW||0},zap:{n:S.zapN,k:S.zapK,m:S.zapM||1},st:myStatus(),v:VER})}catch(e){}}}
 
 function myStatus(){
   const now=performance.now(),fx={};
@@ -273,11 +273,14 @@ function receive(o){
   // their top edge is our top edge; mirror x because the phones face each other
   const x=Math.min(1-BR,Math.max(BR,1-(+o.x||.5)));
   S.ball={x,y:-BR,vx:Math.max(-2.6,Math.min(2.6,-(+o.vx||0))),vy:Math.min(2.8,Math.abs(+o.vy||1)),r:Math.min(30,+o.r||0),spin:clamp(-(+o.s||0),-4,4)};rescaleBall();
+  if(o.w&&S.portals&&S.portals.a){const P=S.portals,b=S.ball,vy=clamp(+o.vy||1,-2.8,2.8),sp=Math.hypot(b.vx,vy)||1;
+    b.vy=vy;rescaleBall();b.x=clamp(P.a.x+b.vx/sp*(PR+.03),BR,1-BR);b.y=P.a.y+b.vy/sp*(PR+.03);b.sq=1;P.cd=performance.now()+600;
+    burst(P.a.x,P.a.y,'#4fd1c5',18,'star',1);blip(1040,.12,'sine',.1);buzz(20)}
   S.trail=[];
 }
 
-function sendAcross(b){
-  S.outN++;S.outX=b.x;S.outVx=b.vx;S.outVy=b.vy;S.outR=b.r||0;S.outS=b.spin||0;pub();
+function sendAcross(b,warp){
+  S.outN++;S.outX=b.x;S.outVx=b.vx;S.outVy=b.vy;S.outR=b.r||0;S.outS=b.spin||0;S.outW=warp?1:0;pub();
   S.ball=null;
 }
 
@@ -343,7 +346,7 @@ function useSlot(i){
     if(t==='sticky')S.stk=Math.min(2,(on('sticky',now)?S.stk||1:0)+n);
     if(t==='bigball')S.bbl=Math.min(3,(on('bigball',now)?S.bbl||1:0)+n);
     S.fx[t]=now+f.dur*(t==='sticky'||t==='bigball'?1:n);if(t==='big')S.fx.mini=0;pub()}
-  else if(f.both){S.fx[t]=now+f.dur*n;if(S.mode!=='solo'){S.zapN++;S.zapK=t;S.zapM=n;pub()}}   // TRON: lights out on both phones
+  else if(f.both){S.fx[t]=now+f.dur*n;if(t==='portal')S.portals=makePortals();if(S.mode!=='solo'){S.zapN++;S.zapK=t;S.zapM=n;pub()}}   // TRON: lights out on both phones
   else if(S.mode==='solo')getZap(t,n);   // practice: no partner, so it lands on you
   else{S.zapN++;S.zapK=t;S.zapM=n;pub()}
   const p=slotPos(i);burst(p.x/W,p.y/W,f.self?'#ffd86e':'#c9a2ff',18,f.self?'star':'heart',1.2);S.shake=Math.max(S.shake,.3);
@@ -382,7 +385,10 @@ function step(now){
     if(b.x>1-rb){b.x=1-rb;b.vx=-Math.abs(b.vx);b.spin=(b.spin||0)*-.5;b.sq=.6;burst(1,b.y,'#f6c4d4',4,'dot',.35);blip(400,.04)}
     // banana peel: the ball slips and shoots off in a new direction
     if(S.portals&&on('portal',now)&&now>S.portals.cd){const P=S.portals;
-      for(const [p,q] of [[P.a,P.b],[P.b,P.a]])if(Math.hypot(b.x-p.x,b.y-p.y)<PR+rb*.5){
+      if(!P.b&&Math.hypot(b.x-P.a.x,b.y-P.a.y)<PR+rb*.5){   // online: warp to the hole on the other phone
+        burst(P.a.x,P.a.y,'#9b6bff',18,'star',.9);blip(520,.12,'sine',.1);setTimeout(()=>blip(1040,.12,'sine',.1),90);buzz(20);
+        P.cd=now+600;sendAcross(b,true)}
+      else if(P.b)for(const [p,q] of [[P.a,P.b],[P.b,P.a]])if(Math.hypot(b.x-p.x,b.y-p.y)<PR+rb*.5){
         burst(p.x,p.y,'#9b6bff',14,'star',.7);
         const sp=Math.hypot(b.vx,b.vy)||1;b.x=clamp(q.x+b.vx/sp*(PR+rb+.01),rb,1-rb);b.y=q.y+b.vy/sp*(PR+rb+.01);b.sq=1;S.trail=[];
         burst(q.x,q.y,'#4fd1c5',14,'star',.9);P.cd=now+350;blip(520,.12,'sine',.1);setTimeout(()=>blip(1040,.12,'sine',.1),90);buzz(20);break}}
@@ -522,7 +528,7 @@ function draw(now){
     const urgent=left<.3,jit=urgent?Math.sin(now/30)*1.5:0;
     ctx.fillStyle='rgba(255,253,251,.9)';ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(bx+jit,by,bw,bh,bh/2);ctx.fill();ctx.stroke();
     if(left>0){ctx.fillStyle=urgent?'#ff6f93':left<.6?'#ffd86e':MINT;ctx.beginPath();ctx.roundRect(bx+jit+2,by+2,(bw-4)*left,bh-4,(bh-4)/2);ctx.fill()}}
-  if(S.portals)for(const [p,c1,c2] of [[S.portals.a,'#9b6bff','#e3d6ff'],[S.portals.b,'#2bb5a7','#d2f5f0']]){
+  if(S.portals)for(const [p,c1,c2] of [[S.portals.a,'#9b6bff','#e3d6ff'],[S.portals.b,'#2bb5a7','#d2f5f0']])if(p){
     const x=p.x*u,y=p.y*u,R=PR*u*(1+.06*Math.sin(now/200));
     ctx.save();ctx.translate(x,y);
     ctx.fillStyle='rgba(40,20,60,.85)';ctx.beginPath();ctx.ellipse(0,0,R,R*.9,0,0,7);ctx.fill();
