@@ -48,7 +48,7 @@ button.purple{background:var(--purple)}
 .row.join button{padding:10px 14px}
 button.icon{display:grid;place-items:center;padding:8px 12px!important;text-shadow:none;color:var(--ink)}
 .foot{display:flex;justify-content:center;align-items:center;gap:6px;flex-wrap:wrap}
-.foot .small{opacity:.45;font-size:12px}
+.foot .small{opacity:.45;font-size:12px;cursor:pointer;padding:6px 4px}
 #partyBox{display:grid;gap:10px}
 .help{text-align:left}
 .help .jp{text-align:center;font-size:16px}
@@ -139,7 +139,7 @@ input::placeholder{color:rgba(29,18,48,.45)}
     <div class="foot">
       <button class="ghost" id="btnHelp">How to play</button>
       <button class="ghost" id="btnSolo">Practice</button>
-      <span class="small" id="ver">v40</span>
+      <span class="small" id="ver">v41</span>
     </div>
   </div>
 </div>
@@ -153,6 +153,7 @@ input::placeholder{color:rgba(29,18,48,.45)}
     <div id="partyBox" hidden>
       <div id="diagram" aria-label="How to lay the phones"></div>
       <p class="small" id="rosterTxt"></p>
+      <button class="purple" id="btnBot" hidden>+ Add test player</button>
       <button id="btnGo" hidden>Start</button>
     </div>
     <p class="small" id="waitHelp">Scan with the iPhone camera, or open this page, tap Join and type the code. Then lay the phones top to top.</p>
@@ -239,7 +240,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=40;   // also shown on the start screen
+const VER=41;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -925,13 +926,15 @@ function drawQR(code){
 /* ---------- PARTY: 2\u20135 phones laid out as a polygon, tops facing the middle ---------- */
 const SEATC=['#ff3d8b','#12d4a3','#ffd400','#8a5cff','#ff8a3d'],MAXP=5;
 const livesFor=n=>n===2?5:3;   // a 1-on-1 gets more lives so it lasts
-const P={host:false,me:0,n:0,conns:{},seats:[],started:false,over:false,lives:[],st:[],mult:[],ballAt:-1,incoming:null};
+let DEV=false;try{DEV=localStorage.getItem('pp-dev')==='1'}catch(e){}
+const P={bots:{},round:0,host:false,me:0,n:0,conns:{},seats:[],started:false,over:false,lives:[],st:[],mult:[],ballAt:-1,incoming:null};
 let pconn=null;   // a guest's link to the host
-function pReset(){Object.assign(P,{host:false,me:0,n:0,conns:{},seats:[],started:false,over:false,lives:[],st:[],mult:[],ballAt:-1,incoming:null})}
+function pReset(){Object.assign(P,{bots:{},host:false,me:0,n:0,conns:{},seats:[],started:false,over:false,lives:[],st:[],mult:[],ballAt:-1,incoming:null})}
 // everything goes through the host: send to it (guest) or to everyone (host); always handle locally too
 function psend(m){m.from=P.me;pHandle(m);
   if(P.host){for(const k in P.conns){const c=P.conns[k];if(c&&c.open)try{c.send(m)}catch(e){}}}
   else if(pconn&&pconn.open)try{pconn.send(m)}catch(e){}}
+function botSend(m,seat){m.from=seat;pHandle(m);pRelay(m)}
 function pRelay(m,except){for(const k in P.conns){const c=P.conns[k];if(c&&c!==except&&c.open)try{c.send(m)}catch(e){}}}
 const aliveOthers=()=>{const r=[];for(let i=0;i<P.n;i++)if(i!==P.me&&P.lives[i]>0)r.push(i);return r};
 const aliveCount=()=>P.lives.filter(l=>l>0).length;
@@ -1016,7 +1019,7 @@ function pWaitUI(){
   $('waitText').textContent=P.host?'Everyone scans this, or types the code:':'Lay the phones like this, tops to the middle. Waiting for the host to start.';
   $('qr').hidden=!P.host;$('codeOut').hidden=!P.host;$('waitHelp').hidden=true;
   $('rosterTxt').textContent=n+' phone'+(n===1?'':'s')+' in'+(P.host?' \u00b7 lay them like this, dots = tops':'');
-  $('btnGo').hidden=!P.host;$('btnGo').disabled=n<2;$('btnGo').textContent=n<2?'Waiting for players':'Start with '+n;
+  $('btnGo').hidden=!P.host;$('btnBot').hidden=!(P.host&&DEV&&n<MAXP);$('btnGo').disabled=n<2;$('btnGo').textContent=n<2?'Waiting for players':'Start with '+n;
   drawDiagram(n,P.me)}
 function enterParty(code){
   showErr('');if(!window.Peer){showErr('Could not load the connection library. Check your internet and reload.');return}
@@ -1040,6 +1043,25 @@ function pLeft(seat){
   delete P.conns[seat];if(P.lives[seat]>0)psend({t:'miss',seat,lives:0,left:1});
 }
 function partyStart(){if(!P.host||P.seats.length<2)return;psend({t:'start',n:P.seats.length})}
+/* ---------- dev mode: test players that live on the host's phone ---------- */
+function addBot(){if(!P.host||P.started||P.seats.length>=MAXP)return;const seat=P.seats.length;P.seats.push({bot:true});P.bots[seat]={skill:.8+Math.random()*.12};P.n=P.seats.length;pRelay({t:'roster',n:P.n});pWaitUI();blip(660,.12)}
+function botFx(seat,k){const q=P.st[seat];return q&&q.fx&&performance.now()<(q.fx[k]||0)}
+function botBall(seat,m){   // the ball lands on a test player's phone
+  const R=P.round,flight=(+m.d||0)+700+Math.random()*700;
+  let miss=1-P.bots[seat].skill;for(const k of ['mini','round','drunk','reverse','smallball'])if(botFx(seat,k))miss+=.12;
+  setTimeout(()=>{if(R!==P.round||P.over||P.lives[seat]<=0)return;
+    if(Math.random()<miss){botSend({t:'miss',seat,lives:Math.max(0,P.lives[seat]-1)},seat);return}
+    botShoot(seat)},flight)}
+function botShoot(seat){const a=(Math.random()-.5)*1.4,sp=hitSpeed(),x=.15+Math.random()*.7;
+  const R=gRoute(seat,x,Math.sin(a)*sp,-Math.cos(a)*sp)||{to:nextAlive(seat),x:.5,vx:0,vy:sp,T:.6};
+  botSend({t:'ball',to:R.to,x:R.x,vx:R.vx,vy:R.vy,r:0,s:0,d:Math.round(clamp(R.T*1000,250,1600))},seat)}
+function botTick(){   // now and then a test player throws a red bonus
+  if(!P.host||!P.started||P.over)return;
+  for(const k in P.bots){const seat=+k;if(P.lives[seat]<=0||Math.random()>.12)continue;
+    const opp=[];for(let i=0;i<P.n;i++)if(i!==seat&&P.lives[i]>0)opp.push(i);if(!opp.length)continue;
+    const pool=['mini','smallball','round','drunk','reverse','banana'];botSend({t:'zap',to:opp[Math.floor(Math.random()*opp.length)],k:pool[Math.floor(Math.random()*pool.length)],n:1},seat)}}
+setInterval(botTick,2000);
+
 // guest side: messages from the host
 function pGuest(d,c){
   if(d.t==='full'){showErr('That table is full or already playing.');leave();return}
@@ -1052,7 +1074,7 @@ function pHandle(m){
   const now=performance.now();
   if(m.t==='roster'){P.n=m.n;if(!P.started)pWaitUI();return}
   if(m.t==='start'){
-    P.n=m.n;P.started=true;P.over=false;P.lives=Array(P.n).fill(livesFor(P.n));P.mult=Array(P.n).fill(1);P.st=[];P.ballAt=0;resetPlay();
+    P.n=m.n;P.started=true;P.over=false;P.round++;P.lives=Array(P.n).fill(livesFor(P.n));P.mult=Array(P.n).fill(1);P.st=[];P.ballAt=0;resetPlay();
     $('waiting').hidden=true;$('endOv').hidden=true;$('btnRematch').hidden=!P.host;
     flash('You are P'+(P.me+1),1800);if(P.me===0){S.serveAt=now+2600;setTimeout(()=>flash('3 \u00b7 2 \u00b7 1',1000),1200)}
     return}
@@ -1061,8 +1083,9 @@ function pHandle(m){
     const q={fx:{}};if(m.st&&m.st.fx)for(const k in m.st.fx)if(FX[k])q.fx[k]=now+Math.min(40000,Math.max(0,+m.st.fx[k]||0));
     q.stk=clamp(+((m.st||{}).stk)||1,1,2);q.bbl=clamp(+((m.st||{}).bbl)||1,1,3);q.banana=now+Math.min(40000,Math.max(0,+((m.st||{}).banana)||0));P.st[m.seat]=q;
     const mm=clamp(+m.mult||1,1,9);if(mm!==P.mult[m.seat]){P.mult[m.seat]=mm;rescaleBall()}return}
-  if(m.t==='ball'){P.ballAt=m.to;if(m.to===P.me)P.incoming={at:now+(+m.d||0),m};return}
-  if(m.t==='zap'){if(m.to===P.me||(m.to===-1&&m.from!==P.me)){if(P.lives[P.me]>0)getZap(m.k,clamp(+m.n||1,1,3))}return}
+  if(m.t==='ball'){P.ballAt=m.to;if(m.to===P.me)P.incoming={at:now+(+m.d||0),m};else if(P.host&&P.bots[m.to])botBall(m.to,m);return}
+  if(m.t==='zap'){if(m.to===P.me||(m.to===-1&&m.from!==P.me)){if(P.lives[P.me]>0)getZap(m.k,clamp(+m.n||1,1,3))}
+    if(P.host)for(const k in P.bots){const seat=+k;if(m.to===seat||(m.to===-1&&m.from!==seat)){const q=P.st[seat]=P.st[seat]||{fx:{}};q.fx=q.fx||{};q.fx[m.k]=now+FX[m.k].dur*(+m.n||1)}}return}
   if(m.t==='miss'){
     P.lives[m.seat]=m.lives;P.ballAt=-1;S.mult=1;P.mult=P.mult.map(()=>1);S.shake=Math.max(S.shake,.6);
     if(m.seat===P.me){S.ball=null;flash(m.lives>0?'Missed \u00b7 '+m.lives+' left':'OUT',1600);buzz(150);blip(200,.3,'sawtooth',.08);
@@ -1070,6 +1093,7 @@ function pHandle(m){
     else flash(m.left?'P'+(m.seat+1)+' left':m.lives>0?'P'+(m.seat+1)+' missed':'P'+(m.seat+1)+' is OUT',1400);
     if(aliveCount()<=1){pOver();return}
     const server=m.lives>0?m.seat:nextAlive(m.seat);if(server===P.me)S.serveAt=now+1600;
+    else if(P.host&&P.bots[server]){const R=P.round;setTimeout(()=>{if(R===P.round&&!P.over)botShoot(server)},1600)}
     return}
 }
 function pOver(){
@@ -1135,6 +1159,10 @@ $('btnScanCancel').onclick=()=>{stopScan();$('joinOv').hidden=false};
 $('codeIn').addEventListener('keydown',e=>{if(e.key==='Enter')$('btnJoin').click()});
 $('btnParty').onclick=()=>{audio();enterParty(newCode())};
 $('btnGo').onclick=()=>{audio();partyStart()};
+$('btnBot').onclick=()=>{audio();addBot()};
+let devTaps=0,devT=0;$('ver').addEventListener('click',()=>{const t=Date.now();devTaps=t-devT<600?devTaps+1:1;devT=t;
+  if(devTaps>=5){devTaps=0;DEV=!DEV;try{localStorage.setItem('pp-dev',DEV?'1':'0')}catch(e){}$('ver').textContent='v'+VER+(DEV?' dev':'');blip(DEV?990:330,.12)}});
+if(DEV)$('ver').textContent='v'+VER+' dev';
 $('btnSolo').onclick=()=>{audio();S.mode='solo';S.lost=0;$('lobby').hidden=true;$('topHint').hidden=true;S.mult=1;paintHud();flash('Practice',1200);S.serveAt=performance.now()+900};
 function leave(){$('joinOv').hidden=true;try{pconn&&pconn.close()}catch(e){}for(const k in P.conns)try{P.conns[k].close()}catch(e){}pconn=null;pReset();S.pick=null;$('partyBox').hidden=true;$('btnRematch').hidden=false;try{conn&&conn.close()}catch(e){}try{peer&&peer.destroy()}catch(e){}conn=null;peer=null;S.mode='lobby';S.ball=null;S.serveAt=0;S.otherPeer=null;
   $('waiting').hidden=true;$('endOv').hidden=true;$('hud').hidden=true;$('topHint').hidden=true;$('lobby').hidden=false}
