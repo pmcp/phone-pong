@@ -139,7 +139,7 @@ input::placeholder{color:rgba(29,18,48,.45)}
     <div class="foot">
       <button class="ghost" id="btnHelp">How to play</button>
       <button class="ghost" id="btnSolo">Practice</button>
-      <span class="small" id="ver">v43</span>
+      <span class="small" id="ver">v44</span>
     </div>
   </div>
 </div>
@@ -189,7 +189,7 @@ input::placeholder{color:rgba(29,18,48,.45)}
       <li>Lay the phones top to top. Drag anywhere to move your paddle.</li>
       <li>Hit the ball off the top of your screen and it lands on the other phone.</li>
       <li>Swipe while you hit to put spin on it.</li>
-      <li>Bonuses fall from the top. Hit them with the <b>ball</b>, not the paddle. Below the dashed line they break.</li>
+      <li>Bonuses zigzag down. Catch them with the <b>middle</b> of your paddle. Miss and they break.</li>
       <li>Bonuses go into your two slots. Tap a slot to use it. The same bonus twice stacks: stronger or longer.</li>
       <li>2 to 5 phones. Everyone has lives (5 each with two players, 3 with more). Miss and you lose one. Last one standing wins.</li>
       <li>With more than two players, tap a red bonus and pick who gets it.</li>
@@ -240,7 +240,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=43;   // also shown on the start screen
+const VER=44;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -550,16 +550,17 @@ function step(now){
   S.bananas=S.bananas.filter(q=>now<q.until&&q.y<H+.1);
   // falling items: catch them with your paddle
   const playing=(S.mode==='solo'||(S.mode==='online'&&S.otherPeer)||(S.mode==='party'&&P.started&&P.lives[P.me]>0))&&!gameOver()&&$('endOv').hidden;
-  if(playing&&!S.nextCookie)S.nextCookie=now+1500+Math.random()*1500;
-  if(playing&&now>S.nextCookie&&S.cookies.length<3){
+  if(playing&&!S.nextCookie)S.nextCookie=now+2500+Math.random()*2000;
+  if(playing&&now>S.nextCookie&&S.cookies.length<2){
     const pool=['cookie','cookie','cookie','big','bigball','sticky','sticky','mini','smallball','round','drunk','reverse','banana','portal','portal','tron'];
     let t=pool[Math.floor(Math.random()*pool.length)];if(t==='tron'&&Math.random()<.5)t='cookie';
-    S.cookies.push({t,x:.15+Math.random()*.7,y:-.06,vy:.2+Math.random()*.08,born:now,w:Math.random()*6});S.nextCookie=now+1800+Math.random()*1700}
+    S.cookies.push({t,x:.15+Math.random()*.7,y:-.06,vy:.3+Math.random()*.12,born:now,w:Math.random()*6,z:.7+Math.random()*.9});S.nextCookie=now+2600+Math.random()*2400}
   // items float on your half; hit one with the ball to collect it
   // items fall down your half; the paddle passes through them, only the ball collects them
-  for(const k of S.cookies){k.y+=k.vy*dt;k.x+=Math.sin(now/600+k.w)*.04*dt;
-    const bb=S.ball;
-    if(!k.got&&bb&&!bb.stuck&&Math.hypot(bb.x-k.x,bb.y-k.y)<ballR(bb,now)+CR*1.1){k.got=1;collectFx(k);
+  // bonuses zigzag down; catch them with the middle of your paddle
+  for(const k of S.cookies){k.y+=k.vy*dt;k.x=clamp(k.x+Math.sin(now/380*(k.z||1)+k.w)*.16*dt,.06,.94);
+    const py=PY(),reach=(on('round',now)?roundR(now):padW(now)/2)*.75;
+    if(!k.got&&k.y>=py-.015&&k.y<=py+.05&&Math.abs(k.x-S.paddleX)<reach){k.got=1;collectFx(k);squish=Math.max(squish,.6);
       buzz([10,30,10]);blip(988,.08,'square',.08);setTimeout(()=>blip(1319,.12,'square',.08),90);
       if(k.t==='cookie'){S.mult=Math.min(5,S.mult+1);pub();paintHud();rescaleBall();flash('Radja! \u00d7'+S.mult,1100)}
       else{let free=S.slots.findIndex((x,i)=>x===k.t&&S.slotN[i]<slotCap(x));if(free<0)free=S.slots.indexOf(null);
@@ -567,7 +568,7 @@ function step(now){
           const p=slotPos(free),nn=S.slotN[free];burst(p.x/W,p.y/W,kindCol(k.t),12+nn*6,'star',.7+nn*.2);
           flash('GET! '+(k.t==='sticky'&&nn>1?'SUPER STICKY':k.t==='banana'&&nn>1?'BANANA RAIN'+(nn>2?' \u00d7'+(nn-1):''):FX[k.t].label+(nn>1?' \u00d7'+nn:'')),900)}
         else flash('slots full!',800)}}}
-  for(const k of S.cookies)if(!k.got&&k.y>=zoneY()){k.got=1;shatter(k)}
+  for(const k of S.cookies)if(!k.got&&k.y>=PY()+.07){k.got=1;shatter(k)}   // missed it: it breaks
   S.cookies=S.cookies.filter(k=>!k.got);
   for(const p of S.parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=p.g*dt;p.vx*=Math.exp(-dt*2);p.life-=dt}
   S.parts=S.parts.filter(p=>p.life>0);
@@ -617,9 +618,6 @@ function draw(now){
   // net at top: a sprayed pink band with drips
   ctx.fillStyle='#ff3d8b';ctx.fillRect(0,0,W,7);
   for(let x=.03;x<1;x+=.11){const L=8+((x*997)%1)*18+Math.sin(now/900+x*20)*3;ctx.beginPath();ctx.roundRect(x*u-3,0,6,L,3);ctx.fill();ctx.beginPath();ctx.arc(x*u,L,4,0,7);ctx.fill()}
-  // ball zone line: bonuses break apart here
-  if(S.mode!=='lobby'){ctx.save();ctx.strokeStyle='rgba(29,18,48,.22)';ctx.lineWidth=2;ctx.setLineDash([10,9]);ctx.lineDashOffset=-now/60;
-    ctx.beginPath();ctx.moveTo(0,zoneY()*u);ctx.lineTo(W,zoneY()*u);ctx.stroke();ctx.restore()}
   const b=S.ball;
   // trail
   S.trail.forEach((t,i)=>{ctx.fillStyle=`rgba(255,61,139,${i/S.trail.length*.3})`;ctx.beginPath();ctx.arc(t.x*u,t.y*u,(b?ballR(b,now):BR)*u*(.4+i/S.trail.length*.5),0,7);ctx.fill()});
@@ -1154,7 +1152,7 @@ async function startScan(){
 const HELP=[
  ['cookie','Radja','Instant. Adds to the shared multiplier: the next point is worth more and the ball gets faster for everyone. Resets when someone misses.'],
  ['big','Big','Your paddle grows for 10 seconds.'],
- ['bigball','Big ball','The ball is bigger on your half: easier to hit and to catch bonuses with. Stacks up to 3 sizes.'],
+ ['bigball','Big ball','The ball is bigger on your half: easier to hit. Stacks up to 3 sizes.'],
  ['sticky','Sticky','More grip: swipe to curve the ball harder. Two of them = SUPER STICKY: the ball sticks to your paddle while your finger is down (2.5 s max), lift to shoot.'],
  ['mini','Tiny','Their paddle shrinks for 8 seconds.'],
  ['smallball','Tiny ball','The ball is tiny on their half.'],
