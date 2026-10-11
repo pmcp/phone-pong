@@ -12,13 +12,13 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Phone Pong</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik+Wet+Paint&family=Rubik:wght@500;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Titan+One&family=Rubik:wght@500;800&display=swap">
 <style>
 /* Layout: one full-bleed canvas = your half of the table on a painted wall; everything on it is a sticker. Single bold look by choice. */
 :root{
   --wall:#f4efe6; --ink:#1d1230; --pink:#ff3d8b; --mint:#12d4a3; --yellow:#ffd400; --purple:#8a5cff; --card:#ffffff;
   --display:"Bungee","Arial Black",system-ui,sans-serif;
-  --drip:"Rubik Wet Paint","Bungee","Arial Black",system-ui,sans-serif;
+  --bubble:"Titan One","Arial Black",system-ui,sans-serif;
   --body:"Rubik",system-ui,sans-serif;
   color-scheme:light;
 }
@@ -32,7 +32,8 @@ html,body{height:100%;margin:0;overflow:hidden;background:var(--wall);color:var(
 .ov{position:fixed;inset:0;display:grid;place-items:center;padding:16px;background:rgba(244,239,230,.86);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
 .panel{width:min(340px,100%);background:var(--card);border:4px solid var(--ink);border-radius:26px;padding:26px 20px 20px;text-align:center;
   box-shadow:0 0 0 6px #fff,8px 10px 0 6px var(--ink);transform:rotate(-1.5deg);display:grid;gap:14px}
-h1{font-family:var(--drip);font-weight:400;font-size:58px;line-height:.9;margin:0 0 4px;color:var(--pink);-webkit-text-stroke:2px var(--ink);text-shadow:4px 5px 0 var(--yellow);transform:rotate(-3deg)}
+h1{margin:-6px -8px 0;line-height:0}
+h1 svg{width:100%;height:auto;overflow:visible;font-family:var(--bubble)}
 .jp{font-family:var(--display);font-size:13px;margin:-4px 0 0;color:var(--purple);letter-spacing:.04em}
 p{margin:0;font-size:15px;line-height:1.5}
 button{position:relative;font:inherit;font-family:var(--display);font-size:17px;border:3px solid var(--ink);border-radius:16px;padding:13px 16px;cursor:pointer;color:#fff;background:var(--pink);
@@ -55,7 +56,7 @@ input::placeholder{color:rgba(29,18,48,.45)}
 .qr svg{width:100%;height:100%;display:block}
 .mult{font-size:14px;color:#c98a1d}
 .err{color:#e01a5f;font-size:14px}
-.big{font-family:var(--drip);font-size:60px;color:var(--pink);-webkit-text-stroke:2px var(--ink);text-shadow:4px 5px 0 var(--yellow);margin:0}
+.big{font-family:var(--bubble);font-size:60px;color:var(--pink);-webkit-text-stroke:2px var(--ink);text-shadow:4px 5px 0 var(--yellow);margin:0}
 @media (prefers-reduced-motion:reduce){button{transition:none}}
 </style>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -73,7 +74,44 @@ input::placeholder{color:rgba(29,18,48,.45)}
 
 <div class="ov" id="lobby">
   <div class="panel">
-    <h1>Phone<br>Pong</h1>
+    <h1 aria-label="Phone Pong"><svg viewBox="0 0 320 196" role="img" aria-hidden="true">
+      <defs>
+        <linearGradient id="lgFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd400"/><stop offset=".55" stop-color="#ff7aa8"/><stop offset="1" stop-color="#ff3d8b"/></linearGradient>
+        <linearGradient id="lgShine" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/></linearGradient>
+        <style>
+          h1 svg text{font-size:78px;letter-spacing:-6px;text-anchor:middle;dominant-baseline:alphabetic;stroke-linejoin:round}
+          h1 .lw{fill:#fff;stroke:#fff;stroke-width:22px}
+          h1 .l3{fill:#8a5cff;stroke:#1d1230;stroke-width:6px}
+          h1 .l3b{fill:#8a5cff;stroke:#8a5cff;stroke-width:6px}
+          h1 .lf{fill:url(#lgFill);stroke:#1d1230;stroke-width:6px;paint-order:stroke}
+          h1 .ls{fill:url(#lgShine);stroke:none}
+        </style>
+      </defs>
+      <!-- underline swoosh with an arrow, 90s style -->
+      <path d="M40 182 Q160 160 282 170" fill="none" stroke="#1d1230" stroke-width="13" stroke-linecap="round"/>
+      <path d="M40 182 Q160 160 282 170" fill="none" stroke="#12d4a3" stroke-width="6" stroke-linecap="round"/>
+      <path d="M270 156 L298 170 L268 184 Z" fill="#12d4a3" stroke="#1d1230" stroke-width="4" stroke-linejoin="round"/>
+      
+      <g transform="translate(156 82) rotate(-6)">
+        <text class="lw">Phone</text>
+        <text class="l3" transform="translate(9 10)">Phone</text><text class="l3b" transform="translate(6 7)">Phone</text><text class="l3b" transform="translate(3 3.5)">Phone</text>
+        <text class="lf">Phone</text>
+        <text class="ls">Phone</text><ellipse cx="-86" cy="-50" rx="7" ry="3.2" transform="rotate(-30 -86 -50)" fill="#fff" opacity=".9"/><ellipse cx="-33" cy="-55" rx="6" ry="2.8" transform="rotate(-30 -33 -55)" fill="#fff" opacity=".9"/><ellipse cx="73" cy="-33" rx="5" ry="2.4" transform="rotate(-30 73 -33)" fill="#fff" opacity=".9"/>
+      </g>
+      
+      <g transform="translate(172 160) rotate(-3)">
+        <text class="lw">Pong</text>
+        <text class="l3" transform="translate(9 10)">Pong</text><text class="l3b" transform="translate(6 7)">Pong</text><text class="l3b" transform="translate(3 3.5)">Pong</text>
+        <text class="lf">Pong</text>
+        <text class="ls">Pong</text><ellipse cx="-62" cy="-50" rx="7" ry="3.2" transform="rotate(-30 -62 -50)" fill="#fff" opacity=".9"/><ellipse cx="-6" cy="-33" rx="5" ry="2.4" transform="rotate(-30 -6 -33)" fill="#fff" opacity=".9"/><ellipse cx="54" cy="-33" rx="5" ry="2.4" transform="rotate(-30 54 -33)" fill="#fff" opacity=".9"/>
+      </g>
+      <!-- sparkles -->
+      <g fill="#fff" stroke="#1d1230" stroke-width="2.5" stroke-linejoin="round">
+        <path d="M24 30 l5 12 l12 5 l-12 5 l-5 12 l-5 -12 l-12 -5 l12 -5 z"/>
+        <path d="M296 70 l3.5 8 l8 3.5 l-8 3.5 l-3.5 8 l-3.5 -8 l-8 -3.5 l8 -3.5 z"/>
+        <path d="M62 120 l3 7 l7 3 l-7 3 l-3 7 l-3 -7 l-7 -3 l7 -3 z"/>
+      </g>
+    </svg></h1>
     <p class="jp">Two phones, one table</p>
     <p>Put the phones top to top. The ball flies from your screen onto theirs.</p>
     <button id="btnCreate">Start a table</button>
@@ -86,7 +124,7 @@ input::placeholder{color:rgba(29,18,48,.45)}
     </div>
     <p class="err" id="err" hidden></p>
     <button class="ghost" id="btnSolo">Practice alone</button>
-    <p class="small" id="ver">v33</p>
+    <p class="small" id="ver">v34</p>
   </div>
 </div>
 
@@ -150,7 +188,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=33;   // also shown on the start screen
+const VER=34;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
