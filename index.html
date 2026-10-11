@@ -84,7 +84,7 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
     </div>
     <p class="err" id="err" hidden></p>
     <button class="ghost" id="btnSolo">Practice alone</button>
-    <p class="small" id="ver">v27</p>
+    <p class="small" id="ver">v28</p>
   </div>
 </div>
 
@@ -133,7 +133,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=27;   // also shown on the start screen
+const VER=28;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -161,7 +161,7 @@ const FX={
   smallball:{dur:8000,label:'TINY BALL',take:'\u307d\u3061\u3063! tiny ball for them',got:'\u3061\u3063\u3061\u3083\u2026 tiny ball!'},
   drunk:  {dur:8000, label:'DRUNK', take:'\u304b\u3093\u3071\u3044! drunk ball for them',   got:'\u3075\u3089\u3075\u3089\u2026 drunk ball!'},
   reverse:{dur:7000, label:'SWAP',  take:'\u3078\u3078! swapped controls for them', got:'\u3042\u308c? controls swapped!'},
-  tron:   {dur:9000,both:1,label:'TRON',take:'\u30cd\u30aa\u30f3! lights out for both',got:'\u30cd\u30aa\u30f3! lights out!'},
+  tron:   {dur:9000,both:1,label:'STROBO',take:'\u30b9\u30c8\u30ed\u30dc! STROBO for both',got:'\u30b9\u30c8\u30ed\u30dc! STROBO!'},
   portal: {dur:10000,both:1,label:'PORTAL',take:'\u30ef\u30fc\u30d7! portals open',got:'\u30ef\u30fc\u30d7! portals open'},
   banana: {dur:12000,label:'BANANA',take:'\u307d\u3044\u3063! banana thrown',           got:'\u30d0\u30ca\u30ca! watch out'},
 };
