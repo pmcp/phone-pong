@@ -84,7 +84,7 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
     </div>
     <p class="err" id="err" hidden></p>
     <button class="ghost" id="btnSolo">Practice alone</button>
-    <p class="small" id="ver">v30</p>
+    <p class="small" id="ver">v31</p>
   </div>
 </div>
 
@@ -133,7 +133,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=30;   // also shown on the start screen
+const VER=31;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -147,6 +147,7 @@ const raining=now=>now<S.rain.until;
 // two holes at random spots on this half, far enough apart; in one, out the other
 const PR=.045;
 function makePortals(exit){if(S.mode==='online')return {a:{x:.15+Math.random()*.7,y:H*(.12+Math.random()*.45)},b:null,out:!!exit,cd:0};let a,b;do{a={x:.15+Math.random()*.7,y:H*(.12+Math.random()*.62)};b={x:.15+Math.random()*.7,y:H*(.12+Math.random()*.62)}}while(Math.hypot(a.x-b.x,a.y-b.y)<.45);return {a,b,cd:0}}
+const zoneY=()=>PY()-.11;   // bonuses break apart when they reach this line
 const slotCap=t=>t==='sticky'?2:3;   // how many of one kind a slot can stack
 const HOLD=2500;   // ms you may keep the ball stuck to your paddle
 const Z=.78;   // zoom: everything on the table is drawn this much smaller, giving more room
@@ -448,7 +449,7 @@ function step(now){
           const p=slotPos(free),nn=S.slotN[free];burst(p.x/W,p.y/W,FX[k.t].self?'#ffd86e':'#c9a2ff',12+nn*6,'star',.7+nn*.2);
           flash('GET! '+(k.t==='sticky'&&nn>1?'SUPER STICKY':k.t==='banana'&&nn>1?'BANANA RAIN'+(nn>2?' \u00d7'+(nn-1):''):FX[k.t].label+(nn>1?' \u00d7'+nn:'')),900)}
         else flash('slots full!',800)}}}
-  for(const k of S.cookies)if(!k.got&&k.y>=PY()-.02){k.got=1;burst(k.x,k.y,'#e9c9d6',9,'dot',.55);S.parts.push({x:k.x,y:k.y,vx:0,vy:0,g:0,life:.25,max:.25,col:'#e9c9d6',kind:'ring',sz:CR*.7});blip(330,.05,'sine',.05)}
+  for(const k of S.cookies)if(!k.got&&k.y>=zoneY()){k.got=1;shatter(k)}
   S.cookies=S.cookies.filter(k=>!k.got);
   for(const p of S.parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=p.g*dt;p.vx*=Math.exp(-dt*2);p.life-=dt}
   S.parts=S.parts.filter(p=>p.life>0);
@@ -469,13 +470,21 @@ function collectFx(k){
   burst(k.x,k.y,col,16,'star',1.1);burst(k.x,k.y,'#fff',8,'dot',.8);
   S.parts.push({x:k.x,y:k.y,vx:0,vy:0,g:0,life:.35,max:.35,col,kind:'ring',sz:CR});
 }
-const popAt={sMe:0,sThem:0};function popChip(id){popAt[id]=performance.now()}
+const popAt={sMe:0,sThem:0};// a bonus that reached the line breaks into chunks that tumble down
+function shatter(k){
+  const col=k.t==='cookie'?'#e9a35c':(FX[k.t]&&FX[k.t].self?'#ffd86e':FX[k.t]&&FX[k.t].both?'#7df9ff':'#c9a2ff');
+  for(let i=0;i<12;i++){const a=-Math.PI*Math.random(),v=.15+Math.random()*.35;
+    S.parts.push({x:k.x+(Math.random()-.5)*CR,y:k.y,vx:Math.cos(a)*v,vy:Math.sin(a)*v*.6,g:2.2,life:.6+Math.random()*.4,max:1,col:i%3?col:'#5b3a4a',kind:'chip',sz:.006+Math.random()*.008,rot:Math.random()*6,spin:(Math.random()-.5)*14})}
+  burst(k.x,k.y,'#ffffff',6,'dot',.4);blip(220,.07,'square',.05);setTimeout(()=>blip(160,.08,'square',.04),50);
+}
+function popChip(id){popAt[id]=performance.now()}
 const backOut=t=>{const c=1.9;t=Math.min(1,Math.max(0,t))-1;return 1+(c+1)*t*t*t+c*t*t};
 function drawParts(u){
   for(const p of S.parts){const a=Math.min(1,p.life/(p.max*.6)),x=p.x*u,y=p.y*u,r=p.sz*u;ctx.globalAlpha=a;
     if(p.kind==='ring'){const t=1-p.life/p.max;ctx.strokeStyle=p.col;ctx.lineWidth=4*(1-t)+1;ctx.beginPath();ctx.arc(x,y,r*u/u*(1+t*2.2),0,7);ctx.stroke()}
     else if(p.kind==='heart'){ctx.fillStyle=p.col;ctx.save();ctx.translate(x,y);ctx.rotate(p.rot);ctx.beginPath();ctx.moveTo(0,r*.9);ctx.bezierCurveTo(-r*1.4,-r*.1,-r*.6,-r*1.2,0,-r*.35);ctx.bezierCurveTo(r*.6,-r*1.2,r*1.4,-r*.1,0,r*.9);ctx.fill();ctx.restore()}
     else if(p.kind==='star'){ctx.fillStyle=p.col;ctx.save();ctx.translate(x,y);ctx.rotate(p.rot+p.life*4);ctx.beginPath();for(let i=0;i<10;i++){const rr=i%2?r*.42:r,aa=i*Math.PI/5;ctx.lineTo(Math.cos(aa)*rr,Math.sin(aa)*rr)}ctx.closePath();ctx.fill();ctx.restore()}
+    else if(p.kind==='chip'){ctx.fillStyle=p.col;ctx.save();ctx.translate(x,y);ctx.rotate(p.rot+(p.spin||0)*(p.max-p.life));ctx.fillRect(-r,-r*.7,r*2,r*1.4);ctx.restore()}
     else{ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill()}}
   ctx.globalAlpha=1;
 }
@@ -492,6 +501,9 @@ function draw(now){
   // net at top
   ctx.fillStyle='#f6c4d4';
   for(let x=0;x<1;x+=.06){ctx.beginPath();ctx.roundRect(x*u+2,4,.035*u,8,4);ctx.fill()}
+  // ball zone line: bonuses break apart here
+  if(S.mode!=='lobby'){ctx.save();ctx.strokeStyle='rgba(91,58,74,.22)';ctx.lineWidth=2;ctx.setLineDash([10,9]);ctx.lineDashOffset=-now/60;
+    ctx.beginPath();ctx.moveTo(0,zoneY()*u);ctx.lineTo(W,zoneY()*u);ctx.stroke();ctx.restore()}
   // side lines
   ctx.strokeStyle='#f6c4d4';ctx.lineWidth=3;ctx.setLineDash([2,10]);ctx.lineCap='round';
   ctx.beginPath();ctx.moveTo(.5*u,20);ctx.lineTo(.5*u,(PY()-.25)*u);ctx.stroke();ctx.setLineDash([]);
@@ -531,7 +543,7 @@ function draw(now){
     for(let i=0;i<3;i++){ctx.beginPath();ctx.arc(0,0,R*(.25+i*.22),i*2,i*2+3.6);ctx.stroke()}
     ctx.restore()}
   for(const q of S.bananas)drawBanana(q.x*u,q.y*u,.045*Z*u,Math.sin(now/400+q.w)*(q.vy?.6:.15)+(q.vy?now/700+q.w:0));
-  for(const k of S.cookies){const sc=backOut((now-k.born)/380),x=k.x*u,y=k.y*u,al=clamp((PY()-k.y)/.3,0,1);
+  for(const k of S.cookies){const sc=backOut((now-k.born)/380),x=k.x*u,y=k.y*u,al=1;
     const self=k.t==='cookie'||(FX[k.t]&&FX[k.t].self),glow=self?'255,216,110':'201,162,255',ph=now/1000+k.w;
     // soft pulsing halo
     ctx.globalAlpha=al*(.35+.2*Math.sin(ph*5));ctx.fillStyle=`rgba(${glow},.55)`;ctx.beginPath();ctx.arc(x,y,CR*u*(1.6+.15*Math.sin(ph*5)),0,7);ctx.fill();
