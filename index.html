@@ -42,7 +42,8 @@ button:active{transform:translateY(4px);box-shadow:0 1px 0 var(--ink)}
 button.mint{background:var(--mint)}
 button.purple{background:var(--purple)}
 .panel>.row button{padding:12px 8px;font-size:16px}
-.row.join{display:grid;grid-template-columns:1fr auto auto;gap:8px}
+.row.join{display:grid;grid-template-columns:1fr auto;gap:8px}
+.or{text-align:center;margin:-4px 0}
 .row.join>*{flex:none}
 .row.join button{padding:10px 14px}
 button.icon{display:grid;place-items:center;padding:8px 12px!important;text-shadow:none;color:var(--ink)}
@@ -132,20 +133,13 @@ input::placeholder{color:rgba(29,18,48,.45)}
       </g>
     </svg></h1>
     <p class="jp">Phones top to top. One table.</p>
-    <div class="row">
-      <button id="btnCreate">2 players</button>
-      <button class="purple" id="btnParty">Party 3&#x2013;5</button>
-    </div>
-    <div class="row join">
-      <input id="codeIn" maxlength="4" placeholder="CODE" autocomplete="off" aria-label="Table code">
-      <button class="mint" id="btnJoin">Join</button>
-      <button class="mint icon" id="btnScan" aria-label="Scan QR code"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4"/><path d="M8 12h8"/></svg></button>
-    </div>
+    <button id="btnParty">Start a table</button>
+    <button class="mint" id="btnJoinOpen">Join a table</button>
     <p class="err" id="err" hidden></p>
     <div class="foot">
       <button class="ghost" id="btnHelp">How to play</button>
       <button class="ghost" id="btnSolo">Practice</button>
-      <span class="small" id="ver">v38</span>
+      <span class="small" id="ver">v40</span>
     </div>
   </div>
 </div>
@@ -174,6 +168,19 @@ input::placeholder{color:rgba(29,18,48,.45)}
     <button class="ghost" id="btnScanCancel">Cancel</button>
   </div>
 </div>
+<div class="ov" id="joinOv" hidden>
+  <div class="panel">
+    <p class="jp">Join a table</p>
+    <button class="mint" id="btnScan">Scan the QR code</button>
+    <p class="small or">or type the code</p>
+    <div class="row join">
+      <input id="codeIn" maxlength="4" placeholder="CODE" autocomplete="off" aria-label="Table code">
+      <button class="mint" id="btnJoin">Join</button>
+    </div>
+    <p class="err" id="joinErr" hidden></p>
+    <button class="ghost" id="btnJoinBack">Back</button>
+  </div>
+</div>
 <div class="ov" id="helpOv" hidden>
   <div class="panel help">
     <p class="jp">How to play</p>
@@ -183,7 +190,8 @@ input::placeholder{color:rgba(29,18,48,.45)}
       <li>Swipe while you hit to put spin on it.</li>
       <li>Bonuses fall from the top. Hit them with the <b>ball</b>, not the paddle. Below the dashed line they break.</li>
       <li>Bonuses go into your two slots. Tap a slot to use it. The same bonus twice stacks: stronger or longer.</li>
-      <li><b>2 players:</b> first to 11. <b>Party:</b> 3 lives each, last one standing wins. Tap a red bonus, then pick who gets it.</li>
+      <li>2 to 5 phones. Everyone has lives (5 each with two players, 3 with more). Miss and you lose one. Last one standing wins.</li>
+      <li>With more than two players, tap a red bonus and pick who gets it.</li>
     </ul>
     <div class="legend"><span><i style="background:#1fd655"></i>helps you</span><span><i style="background:#ff2e4d"></i>hits the other</span><span><i style="background:#ffc400"></i>everyone</span></div>
     <div id="helpList"></div>
@@ -231,7 +239,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=38;   // also shown on the start screen
+const VER=40;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -296,7 +304,7 @@ cv.addEventListener('pointermove',e=>{if(S.padPtr===null||e.pointerId===S.padPtr
 
 /* ---------- direct phone-to-phone link (PeerJS / WebRTC) ---------- */
 let peer=null, conn=null;
-function showErr(t){$('err').textContent=t;$('err').hidden=!t}
+function showErr(t){for(const id of ['err','joinErr']){$(id).textContent=t;$(id).hidden=!t}}
 function pub(){if(S.mode==='party'){partyStatus();return}if(conn&&conn.open){try{conn.send({role:S.role,game:S.game,lost:S.lost,mult:S.mult,out:{n:S.outN,x:S.outX||0,vx:S.outVx||0,vy:S.outVy||0,r:S.outR||0,s:S.outS||0,w:S.outW||0},zap:{n:S.zapN,k:S.zapK,m:S.zapM||1},st:myStatus(),v:VER})}catch(e){}}}
 
 function myStatus(){
@@ -915,7 +923,8 @@ function drawQR(code){
 }
 /* ---------- party ---------- */
 /* ---------- PARTY: 2\u20135 phones laid out as a polygon, tops facing the middle ---------- */
-const SEATC=['#ff3d8b','#12d4a3','#ffd400','#8a5cff','#ff8a3d'],LIVES=3,MAXP=5;
+const SEATC=['#ff3d8b','#12d4a3','#ffd400','#8a5cff','#ff8a3d'],MAXP=5;
+const livesFor=n=>n===2?5:3;   // a 1-on-1 gets more lives so it lasts
 const P={host:false,me:0,n:0,conns:{},seats:[],started:false,over:false,lives:[],st:[],mult:[],ballAt:-1,incoming:null};
 let pconn=null;   // a guest's link to the host
 function pReset(){Object.assign(P,{host:false,me:0,n:0,conns:{},seats:[],started:false,over:false,lives:[],st:[],mult:[],ballAt:-1,incoming:null})}
@@ -986,7 +995,7 @@ function drawParty(now,u){
     ctx.font=`${Math.round(.026*u)}px "Bungee", "Arial Black", system-ui`;ctx.fillText(me?'YOU':'P'+(i+1),cx,top-.03*u);
     const st=me?myStat(now):(()=>{const q=P.st[i]||{fx:{}};return {on:k=>now<((q.fx||{})[k]||0),stk:q.stk||1,bbl:q.bbl||1,mult:1,banana:now<(q.banana||0)}})();
     drawPaddle(cx,top,.22,st,SEATC[i],now,u,0);
-    for(let l=0;l<LIVES;l++){const lx=cx+(l-1)*.03*u,ly=top+.055*u;ctx.fillStyle=l<P.lives[i]?'#1d1230':'rgba(29,18,48,.18)';ctx.beginPath();ctx.arc(lx,ly,.009*u,0,7);ctx.fill()}
+    for(let l=0,L=livesFor(n);l<L;l++){const lx=cx+(l-(L-1)/2)*.026*u,ly=top+.055*u;ctx.fillStyle=l<P.lives[i]?'#1d1230':'rgba(29,18,48,.18)';ctx.beginPath();ctx.arc(lx,ly,.009*u,0,7);ctx.fill()}
     if(dead){ctx.globalAlpha=1;ctx.fillStyle='#ff3d8b';ctx.font=`${Math.round(.03*u)}px "Bungee", "Arial Black", system-ui`;ctx.fillText('OUT',cx,top+.1*u)}
     if(P.ballAt===i&&!dead){const by=top+.1*u+Math.sin(now/150)*3,r=.012*u;ctx.globalAlpha=1;ctx.fillStyle='#1d1230';ctx.beginPath();ctx.arc(cx,by,r+3,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(cx,by,r+1,0,7);ctx.fill()}
     ctx.restore()}
@@ -1003,7 +1012,7 @@ function drawDiagram(n,me){
 function classicWaitUI(){$('waitTitle').textContent='Waiting for player 2';$('waitText').textContent='Let your partner scan this, or tell them the code:';$('waitHelp').hidden=false;$('qr').hidden=false;$('codeOut').hidden=false;$('partyBox').hidden=true}
 function pWaitUI(){
   const n=P.seats.length||P.n;$('partyBox').hidden=false;
-  $('waitTitle').textContent=P.host?'Party table':'You are P'+(P.me+1);
+  $('waitTitle').textContent=P.host?'Your table':'You are P'+(P.me+1);
   $('waitText').textContent=P.host?'Everyone scans this, or types the code:':'Lay the phones like this, tops to the middle. Waiting for the host to start.';
   $('qr').hidden=!P.host;$('codeOut').hidden=!P.host;$('waitHelp').hidden=true;
   $('rosterTxt').textContent=n+' phone'+(n===1?'':'s')+' in'+(P.host?' \u00b7 lay them like this, dots = tops':'');
@@ -1043,7 +1052,7 @@ function pHandle(m){
   const now=performance.now();
   if(m.t==='roster'){P.n=m.n;if(!P.started)pWaitUI();return}
   if(m.t==='start'){
-    P.n=m.n;P.started=true;P.over=false;P.lives=Array(P.n).fill(LIVES);P.mult=Array(P.n).fill(1);P.st=[];P.ballAt=0;resetPlay();
+    P.n=m.n;P.started=true;P.over=false;P.lives=Array(P.n).fill(livesFor(P.n));P.mult=Array(P.n).fill(1);P.st=[];P.ballAt=0;resetPlay();
     $('waiting').hidden=true;$('endOv').hidden=true;$('btnRematch').hidden=!P.host;
     flash('You are P'+(P.me+1),1800);if(P.me===0){S.serveAt=now+2600;setTimeout(()=>flash('3 \u00b7 2 \u00b7 1',1000),1200)}
     return}
@@ -1077,9 +1086,9 @@ function loadJsQR(){return window.jsQR?Promise.resolve():new Promise((ok,no)=>{c
 function stopScan(){scanOn=false;try{scanStream&&scanStream.getTracks().forEach(t=>t.stop())}catch(e){}scanStream=null;$('scanOv').hidden=true}
 async function startScan(){
   showErr('');$('scanMsg').textContent='Point the camera at your partner\u2019s QR code.';$('scanOv').hidden=false;
-  try{await loadJsQR()}catch(e){stopScan();showErr('Could not load the scanner. Check your internet, or type the code.');return}
+  try{await loadJsQR()}catch(e){stopScan();$('joinOv').hidden=false;showErr('Could not load the scanner. Check your internet, or type the code.');return}
   try{scanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false})}
-  catch(e){stopScan();showErr('No camera access. Allow the camera in Settings, or type the code.');return}
+  catch(e){stopScan();$('joinOv').hidden=false;showErr('No camera access. Allow the camera in Settings, or type the code.');return}
   const v=$('scanVid');v.srcObject=scanStream;try{await v.play()}catch(e){}
   const c=document.createElement('canvas'),cx=c.getContext('2d',{willReadFrequently:true});scanOn=true;
   const tick=()=>{if(!scanOn)return;
@@ -1118,15 +1127,16 @@ $('btnHelp').onclick=()=>{audio();openHelp()};
 $('btnHelpClose').onclick=()=>{$('helpOv').hidden=true};
 /* ---------- buttons ---------- */
 function newCode(){const a='ABCDEFGHJKMNPQRSTUVWXYZ';return Array.from({length:4},()=>a[Math.floor(Math.random()*a.length)]).join('')}
-$('btnCreate').onclick=()=>{audio();enter(newCode(),'a')};
-$('btnJoin').onclick=()=>{audio();const c=$('codeIn').value.trim().toUpperCase();if(!/^[A-Z]{4}$/.test(c)){showErr('Type the 4-letter code from your partner\u2019s screen.');return}enter(c,'b')};
-$('btnScan').onclick=()=>{audio();startScan()};
-$('btnScanCancel').onclick=stopScan;
+$('btnJoin').onclick=()=>{audio();$('joinOv').hidden=true;const c=$('codeIn').value.trim().toUpperCase();if(!/^[A-Z]{4}$/.test(c)){$('joinOv').hidden=false;showErr('Type the 4-letter code from your partner\u2019s screen.');return}enter(c,'b')};
+$('btnScan').onclick=()=>{audio();$('joinOv').hidden=true;startScan()};
+$('btnJoinOpen').onclick=()=>{audio();showErr('');$('joinOv').hidden=false;$('lobby').hidden=true};
+$('btnJoinBack').onclick=()=>{$('joinOv').hidden=true;$('lobby').hidden=false};
+$('btnScanCancel').onclick=()=>{stopScan();$('joinOv').hidden=false};
 $('codeIn').addEventListener('keydown',e=>{if(e.key==='Enter')$('btnJoin').click()});
 $('btnParty').onclick=()=>{audio();enterParty(newCode())};
 $('btnGo').onclick=()=>{audio();partyStart()};
 $('btnSolo').onclick=()=>{audio();S.mode='solo';S.lost=0;$('lobby').hidden=true;$('topHint').hidden=true;S.mult=1;paintHud();flash('Practice',1200);S.serveAt=performance.now()+900};
-function leave(){try{pconn&&pconn.close()}catch(e){}for(const k in P.conns)try{P.conns[k].close()}catch(e){}pconn=null;pReset();S.pick=null;$('partyBox').hidden=true;$('btnRematch').hidden=false;try{conn&&conn.close()}catch(e){}try{peer&&peer.destroy()}catch(e){}conn=null;peer=null;S.mode='lobby';S.ball=null;S.serveAt=0;S.otherPeer=null;
+function leave(){$('joinOv').hidden=true;try{pconn&&pconn.close()}catch(e){}for(const k in P.conns)try{P.conns[k].close()}catch(e){}pconn=null;pReset();S.pick=null;$('partyBox').hidden=true;$('btnRematch').hidden=false;try{conn&&conn.close()}catch(e){}try{peer&&peer.destroy()}catch(e){}conn=null;peer=null;S.mode='lobby';S.ball=null;S.serveAt=0;S.otherPeer=null;
   $('waiting').hidden=true;$('endOv').hidden=true;$('hud').hidden=true;$('topHint').hidden=true;$('lobby').hidden=false}
 $('btnBack').onclick=leave;$('btnLeave').onclick=leave;
 $('btnRematch').onclick=()=>{audio();if(S.mode==='party'){if(P.host)partyStart();return}newGame(Math.max(S.game,S.otherGame)+1,true);maybeFirstServe();if(S.role!=='a')flash('waiting for serve\u2026',2500)};
