@@ -73,7 +73,7 @@ input{font-family:var(--display);font-size:28px;text-align:center;letter-spacing
     </div>
     <p class="err" id="err" hidden></p>
     <button class="ghost" id="btnSolo">Practice alone</button>
-    <p class="small" id="ver">v12</p>
+    <p class="small" id="ver">v13</p>
   </div>
 </div>
 
@@ -113,7 +113,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=12;   // also shown on the start screen
+const VER=13;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -121,6 +121,7 @@ const S={mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,o
 // every multiplier on the table (yours and hers) speeds the ball up on both halves, until someone loses the ball
 const hitSpeed=()=>Math.min(2.7,1.0*(1+.45*((S.mult-1)+(S.themMult-1))));
 function rescaleBall(){const b=S.ball;if(!b)return;const sp=Math.hypot(b.vx,b.vy)||1,k=hitSpeed()/sp;b.vx*=k;b.vy*=k}
+const HOLD=2500;   // ms you may keep the ball stuck to your paddle
 const PW=.3, PY=()=>H-.2, BR=.04, CR=.05;
 // power-ups: self = helps you; the rest are thrown across the net at your partner
 const FX={
@@ -328,7 +329,7 @@ function step(now){
   if(b&&b.stuck){
     // glued to the paddle until the finger lifts (or sticky runs out)
     const rb=ballR(b,now);b.x=clamp(S.paddleX+b.off,rb,1-rb);b.y=PY()-rb;roll(S.padV,0,dt,rb);
-    if(!S.touching||stickyLvl(now)<2){
+    if(!S.touching||stickyLvl(now)<2||now-b.stuckAt>HOLD){
       b.stuck=false;const sp=hitSpeed(),a=clamp(S.padV*.18,-.55,.55);
       b.vx=Math.sin(a)*sp;b.vy=-Math.cos(a)*sp;b.spin=clamp(S.padV*grip(now)*2,-4,4);b.sq=1;
       burst(b.x,b.y,'#ffd86e',12,'star',.8);blip(760,.1,'triangle');buzz(25);
@@ -360,7 +361,7 @@ function step(now){
       }
     }else if(b.vy>0&&b.y+rb>=py&&b.y-rb<=py+.05&&Math.abs(b.x-S.paddleX)<=pw/2+rb){
       b.y=py-rb;
-      if(stickyLvl(now)>=2&&S.touching){b.stuck=true;b.off=b.x-S.paddleX;b.vx=0;b.vy=0;b.spin=0;b.r=(b.r||0)+1;b.sq=1;squish=1;
+      if(stickyLvl(now)>=2&&S.touching){b.stuck=true;b.stuckAt=now;b.off=b.x-S.paddleX;b.vx=0;b.vy=0;b.spin=0;b.r=(b.r||0)+1;b.sq=1;squish=1;
         burst(b.x,py,'#c9a2ff',8,'dot',.4);blip(260,.12,'sine');buzz(20);if(S.mode==='solo')S.lost+=S.mult}
       else{
         const off=clamp((b.x-S.paddleX)/(pw/2),-1,1), sp=hitSpeed(), a=off*1.0, g=grip(now);
@@ -468,6 +469,11 @@ function draw(now){
     for(let a=.2;a<=Math.PI-.2+1e-6;a+=(Math.PI-.4)/8){const p=P(.16*Math.cos(a),.12+.16*Math.sin(a));if(p.z>0){pen?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);pen=true}else pen=false}
     ctx.stroke();ctx.restore();ctx.restore();
   }
+  // hold timer: a bar above the stuck ball that runs down, then the ball fires by itself
+  if(b&&b.stuck){const left=clamp(1-(now-b.stuckAt)/HOLD,0,1),bw=.16*u,bh=.018*u,bx=b.x*u-bw/2,by=b.y*u-ballR(b,now)*u-.05*u;
+    const urgent=left<.3,jit=urgent?Math.sin(now/30)*1.5:0;
+    ctx.fillStyle='rgba(255,253,251,.9)';ctx.strokeStyle='#5b3a4a';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(bx+jit,by,bw,bh,bh/2);ctx.fill();ctx.stroke();
+    if(left>0){ctx.fillStyle=urgent?'#ff6f93':left<.6?'#ffd86e':MINT;ctx.beginPath();ctx.roundRect(bx+jit+2,by+2,(bw-4)*left,bh-4,(bh-4)/2);ctx.fill()}}
   if(S.banana)drawBanana(S.banana.x*u,S.banana.y*u,.045*u,Math.sin(now/400)*.15);
   for(const k of S.cookies){const sc=backOut((now-k.born)/380),x=k.x*u,y=k.y*u,al=clamp((PY()-k.y)/.3,0,1);
     const self=k.t==='cookie'||(FX[k.t]&&FX[k.t].self),glow=self?'255,216,110':'201,162,255',ph=now/1000+k.w;
