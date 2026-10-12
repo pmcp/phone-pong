@@ -139,7 +139,7 @@ input::placeholder{color:rgba(29,18,48,.45)}
     <div class="foot">
       <button class="ghost" id="btnHelp">How to play</button>
       <button class="ghost" id="btnSolo">Practice</button>
-      <span class="small" id="ver">v45</span>
+      <span class="small" id="ver">v46</span>
     </div>
   </div>
 </div>
@@ -240,7 +240,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=45;   // also shown on the start screen
+const VER=46;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={balls:[],mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -466,7 +466,7 @@ function useSlot(i){
     if(t==='sticky')S.stk=Math.min(2,(on('sticky',now)?S.stk||1:0)+n);
     if(t==='bigball')S.bbl=Math.min(3,(on('bigball',now)?S.bbl||1:0)+n);
     S.fx[t]=now+f.dur*(t==='sticky'||t==='bigball'?1:n);if(t==='big')S.fx.mini=0;pub()}
-  else if(f.both){S.fx[t]=now+f.dur*n;if(t==='portal')S.portals=makePortals();if(S.mode==='party')psend({t:'zap',to:-1,k:t,n});else if(S.mode!=='solo'){S.zapN++;S.zapK=t;S.zapM=n;pub()}}   // TRON: lights out on both phones
+  else if(f.both){if(t!=='tron'||S.mode==='solo')S.fx[t]=now+f.dur*n;if(t==='portal')S.portals=makePortals();if(S.mode==='party')psend({t:'zap',to:-1,k:t,n});else if(S.mode!=='solo'){S.zapN++;S.zapK=t;S.zapM=n;pub()}}   // TRON: lights out on both phones
   else if(S.mode==='solo')getZap(t,n);   // practice: no partner, so it lands on you
   else{S.zapN++;S.zapK=t;S.zapM=n;pub()}
   const p=slotPos(i);burst(p.x/W,p.y/W,kindCol(t),18,'star',1.2);S.shake=Math.max(S.shake,.3);
@@ -983,22 +983,35 @@ function fireAt(i,target){
   const t=S.slots[i];if(!t||P.lives[target]<=0)return;
   const now=performance.now(),f=FX[t],n=S.slotN[i]||1;S.slots[i]=null;S.slotN[i]=0;S.slotAt[i]=now;
   if(t==='portal'){S.fx.portal=now+f.dur*n;S.portals=makePortals();S.portalTo=target}
-  psend({t:'zap',to:target,k:t,n});
-  const p=slotPos(i);burst(p.x/W,p.y/W,SEATC[target],18,'star',1.2);S.shake=Math.max(S.shake,.3);
+  const p=slotPos(i);addShot({x:p.x,y:p.y},colPos(target),t);
+  psend({t:'zap',to:target,k:t,n});burst(p.x/W,p.y/W,SEATC[target],18,'star',1.2);S.shake=Math.max(S.shake,.3);
   buzz([15,25,15]);blip(660,.08,'square',.08);setTimeout(()=>blip(990,.1,'square',.08),70);
   flash(FX[t].label+' \u2192 P'+(target+1),1300);
 }
 // target picker: one sticker button per opponent, above the paddle
-function pickPos(k,count){const r=Math.min(30,W*.075),gap=r*2+14,x0=W/2-(count-1)*gap/2;return {x:x0+k*gap,y:PY()*W-.17*W,r}}
-function pickHit(x,y){const o=aliveOthers();for(let k=0;k<o.length;k++){const p=pickPos(k,o.length);if(Math.hypot(x-p.x,y-p.y)<p.r+8)return o[k]}return -1}
-function drawPick(now,u){if(!S.pick)return;const o=aliveOthers();
-  ctx.save();ctx.font=`${Math.round(.035*u)}px "Bungee", "Arial Black", system-ui`;ctx.textAlign='center';ctx.lineWidth=5;ctx.strokeStyle='#fff';ctx.fillStyle='#1d1230';
-  const p0=pickPos(0,o.length);ctx.strokeText('Who?',W/2,p0.y-p0.r-14);ctx.fillText('Who?',W/2,p0.y-p0.r-14);
-  o.forEach((seat,k)=>{const p=pickPos(k,o.length),bob=Math.sin(now/200+k)*2;
-    ctx.fillStyle='#1d1230';ctx.beginPath();ctx.arc(p.x+2,p.y+4+bob,p.r+4,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(p.x,p.y+bob,p.r+4,0,7);ctx.fill();
-    ctx.fillStyle=SEATC[seat];ctx.strokeStyle='#1d1230';ctx.lineWidth=3;ctx.beginPath();ctx.arc(p.x,p.y+bob,p.r,0,7);ctx.fill();ctx.stroke();
-    ctx.fillStyle='#1d1230';ctx.font=`${Math.round(p.r*.7)}px "Bungee", "Arial Black", system-ui`;ctx.textBaseline='middle';ctx.fillText('P'+(seat+1),p.x,p.y+bob+1);ctx.textBaseline='alphabetic'});
+// picking a target: tap the player's paddle in the scoreboard at the top
+const boardTop=()=>Math.max(46,.11*W);
+const colPos=i=>({x:W*(i+.5)/P.n,y:boardTop()+.01*W});
+function pickHit(x,y){if(y>boardTop()+.16*W)return -1;for(const i of aliveOthers()){if(Math.abs(x-colPos(i).x)<W/P.n/2)return i}return -1}
+function drawPick(now,u){if(!S.pick)return;
+  ctx.save();
+  // dim the playfield a little and point up
+  ctx.fillStyle='rgba(29,18,48,.18)';ctx.fillRect(0,boardTop()+.17*u,W,Hpx);
+  ctx.font=`${Math.round(.04*u)}px "Bungee", "Arial Black", system-ui`;ctx.textAlign='center';ctx.lineWidth=6;ctx.strokeStyle='#fff';ctx.lineJoin='round';
+  const ty=boardTop()+.27*u+Math.sin(now/160)*4;ctx.strokeText('\u2191 Tap who gets it \u2191',W/2,ty);ctx.fillStyle=BAD;ctx.fillText('\u2191 Tap who gets it \u2191',W/2,ty);
+  for(const i of aliveOthers()){const p=colPos(i),r=.075*u*(1+.08*Math.sin(now/120+i));
+    ctx.strokeStyle=BAD;ctx.lineWidth=4;ctx.beginPath();ctx.arc(p.x,p.y+.02*u,r,0,7);ctx.stroke();
+    ctx.lineWidth=3;ctx.beginPath();for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ctx.moveTo(p.x+dx*r*.75,p.y+.02*u+dy*r*.75);ctx.lineTo(p.x+dx*r*1.25,p.y+.02*u+dy*r*1.25)}ctx.stroke()}
   ctx.restore()}
+// attacks fly as little icons: from a slot or a player to their target
+function addShot(a,b,k){(S.shots=S.shots||[]).push({a,b,k,t0:performance.now(),d:520})}
+function drawShots(now,u){if(!S.shots||!S.shots.length)return;
+  for(const sh of S.shots){const t=clamp((now-sh.t0)/sh.d,0,1),e=t*t*(3-2*t),cx=(sh.a.x+sh.b.x)/2+(sh.b.y-sh.a.y)*.25,cy=(sh.a.y+sh.b.y)/2-(sh.b.x-sh.a.x)*.25;
+    const x=(1-e)*(1-e)*sh.a.x+2*(1-e)*e*cx+e*e*sh.b.x,y=(1-e)*(1-e)*sh.a.y+2*(1-e)*e*cy+e*e*sh.b.y;
+    burst(x/W,y/W,kindCol(sh.k),1,'dot',.15);
+    drawFxIcon({k:sh.k,t:0},x,y,.03*u*(1+.3*Math.sin(t*Math.PI)),now,u,false);
+    if(t>=1&&!sh.done){sh.done=1;burst(sh.b.x/W,sh.b.y/W,kindCol(sh.k),14,'star',.9)}}
+  S.shots=S.shots.filter(sh=>!sh.done)}
 // scoreboard: every seat in a row, with its paddle, lives and a ball marker for whoever has the ball
 // the table seen from above: the polygon of phones, yours at the bottom, and the ball flying across the middle
 function drawMap(now,u){
@@ -1026,7 +1039,7 @@ function drawMap(now,u){
   ctx.restore();
 }
 function drawParty(now,u){
-  drawPick(now,u);
+  drawPick(now,u);drawShots(now,u);
   const n=P.n,top=Math.max(46,.11*u);
   for(let i=0;i<n;i++){const cx=u*(i+.5)/n,dead=P.lives[i]<=0,me=i===P.me;
     ctx.save();ctx.globalAlpha=dead?.35:me?1:.85;ctx.textAlign='center';ctx.fillStyle='#1d1230';
@@ -1123,7 +1136,8 @@ function pHandle(m){
     q.stk=clamp(+((m.st||{}).stk)||1,1,2);q.bbl=clamp(+((m.st||{}).bbl)||1,1,3);q.banana=now+Math.min(40000,Math.max(0,+((m.st||{}).banana)||0));P.st[m.seat]=q;
     const mm=clamp(+m.mult||1,1,9);if(mm!==P.mult[m.seat]){P.mult[m.seat]=mm;rescaleBall()}return}
   if(m.t==='ball'){P.ballAt=m.to;P.where[m.owner]=m.to;P.fly={from:m.from,to:m.to,ex:+m.ex||.5,x:+m.x||.5,t0:now,d:Math.max(1,+m.d||0),warp:!!m.warp};if(m.to===P.me)P.inc.push({at:now+(+m.d||0),m});else if(P.host&&P.bots[m.to])botBall(m.to,m);return}
-  if(m.t==='zap'){if(m.to===P.me||(m.to===-1&&m.from!==P.me)){if(P.lives[P.me]>0)getZap(m.k,clamp(+m.n||1,1,3))}
+  if(m.t==='zap'){if(m.from!==P.me&&FX[m.k]){const mine={x:S.paddleX*W,y:PY()*W};if(m.to===-1||m.to===P.me)addShot(colPos(m.from),mine,m.k);else addShot(colPos(m.from),colPos(m.to),m.k)}
+    if(m.to===P.me||(m.to===-1&&m.from!==P.me)){if(P.lives[P.me]>0)getZap(m.k,clamp(+m.n||1,1,3))}
     if(P.host)for(const k in P.bots){const seat=+k;if(m.to===seat||(m.to===-1&&m.from!==seat)){const q=P.st[seat]=P.st[seat]||{fx:{}};q.fx=q.fx||{};q.fx[m.k]=now+FX[m.k].dur*(+m.n||1)}}return}
   if(m.t==='miss'){
     const o=m.owner!=null?+m.owner:m.seat,pts=clamp(+m.pts||1,1,9),own=o===m.seat;
@@ -1184,7 +1198,7 @@ const HELP=[
  ['reverse','Swap','Their left and right are swapped.'],
  ['banana','Banana','A peel on their half: the ball slips off in a random direction. Two = BANANA RAIN.'],
  ['portal','Portal','A hole on your half and one on theirs. Ball in your hole pops out at them, skipping the net.'],
- ['tron','Strobo','Rare. Lights out for everyone: paddle and ball blink in turns.']];
+ ['tron','Strobo','Rare. Lights out for everyone else: their paddle and balls blink in turns.']];
 function iconURL(t){const c=document.createElement('canvas'),px=104;c.width=c.height=px;const g=c.getContext('2d');
   const old=ctx;ctx=g;try{const sc=px/2/(CR*W*2.1);g.translate(px/2,px/2);g.scale(sc,sc);drawItem({t,x:0,y:0,w:0,nolabel:true},performance.now(),W)}catch(e){}ctx=old;return c.toDataURL()}
 function openHelp(){
