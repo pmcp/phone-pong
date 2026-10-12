@@ -139,7 +139,7 @@ input::placeholder{color:rgba(29,18,48,.45)}
     <div class="foot">
       <button class="ghost" id="btnHelp">How to play</button>
       <button class="ghost" id="btnSolo">Practice</button>
-      <span class="small" id="ver">v46</span>
+      <span class="small" id="ver">v47</span>
     </div>
   </div>
 </div>
@@ -240,7 +240,7 @@ function blip(f,d=.09,type='sine',v=.18){if(!ac)return;try{const o=ac.createOsci
 function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 
 /* ---------- state ---------- */
-const VER=46;   // also shown on the start screen
+const VER=47;   // also shown on the start screen
 $('ver').textContent='v'+VER;   // bump on every release so mismatched phones can tell
 const them={fx:{},stk:1,bbl:1,banana:0};let warnedVer=false;
 const S={balls:[],mode:'lobby',role:'a',code:'',game:1,lost:0,themLost:0,outN:0,seenN:0,otherPeer:null,otherGame:0,served:0,
@@ -299,7 +299,7 @@ function pt(e){const t=e.touches?e.touches[0]:e;return t.clientX/W}
 function slotPos(i){const sb=SB,r=Math.min(34,W*.085);return {x:i?W-16-r:16+r,y:Hpx-sb-12-r,r}}
 function slotHit(x,y){for(let i=0;i<2;i++){const p=slotPos(i);if(Math.hypot(x-p.x,y-p.y)<p.r+8)return i}return -1}
 cv.addEventListener('pointerdown',e=>{audio();
-  if(S.pick){const tg=pickHit(e.clientX,e.clientY);if(tg>=0){e.preventDefault();fireAt(S.pick.slot,tg);S.pick=null;return}S.pick=null}
+  if(S.pick){const tg=pickHit(e.clientX,e.clientY);if(tg>=0){e.preventDefault();fireAt(S.pick.slot,tg);S.pick=null;return}}   // aiming stays on until you pick (or tap the slot again)
   const hit=S.mode!=='lobby'?slotHit(e.clientX,e.clientY):-1;
   if(hit>=0){e.preventDefault();useSlot(hit);return}
   S.padPtr=e.pointerId;S.touching=true;S.targetX=e.clientX/W});
@@ -459,7 +459,7 @@ const onSphere=(px,py)=>[px,py,Math.sqrt(Math.max(0,1-px*px-py*py))];
 const turn=v=>[rot[0]*v[0]+rot[1]*v[1]+rot[2]*v[2],rot[3]*v[0]+rot[4]*v[1]+rot[5]*v[2],rot[6]*v[0]+rot[7]*v[1]+rot[8]*v[2]];
 function useSlot(i){
   const t=S.slots[i];if(!t)return;
-  if(S.mode==='party'){if(P.lives[P.me]<=0)return;if(!FX[t].self&&t!=='tron'){const opp=aliveOthers();if(!opp.length)return;if(opp.length===1)return fireAt(i,opp[0]);S.pick={slot:i,until:performance.now()+5000};blip(500,.06);return}}
+  if(S.mode==='party'){if(P.lives[P.me]<=0)return;if(!FX[t].self&&t!=='tron'){const opp=aliveOthers();if(!opp.length)return;if(opp.length===1)return fireAt(i,opp[0]);if(S.pick&&S.pick.slot===i){S.pick=null;blip(300,.05);return}S.pick={slot:i,k:t,t0:performance.now()};blip(500,.06);return}}
   const now=performance.now(),f=FX[t],n=S.slotN[i]||1;S.slots[i]=null;S.slotN[i]=0;S.slotAt[i]=now;
   // a stack fires all at once: sticky/big ball go up levels, the rest last n times longer
   if(f.self){
@@ -549,7 +549,7 @@ function step(now){
   if(dt>0)S.padV+=((S.paddleX-prevX)/dt-S.padV)*.5;
   if(S.serveAt&&now>=S.serveAt&&(S.mode==='party'?!S.balls.some(q=>q.owner===P.me):!S.ball&&(S.mode==='solo'||S.otherPeer))){S.serveAt=0;serve()}
   if(P.inc&&P.inc.length){for(const it of P.inc.filter(q=>now>=q.at)){const m=it.m;if(S.mode==='party'&&!P.over)receive({x:1-m.x,vx:-m.vx,vy:m.vy,r:m.r,s:m.s,w:m.warp,owner:m.owner})}P.inc=P.inc.filter(q=>now<q.at)}
-  if(S.pick&&now>S.pick.until)S.pick=null;
+  if(S.pick&&(!S.slots[S.pick.slot]||(S.mode==='party'&&!aliveOthers().length)))S.pick=null;
   for(const b of S.balls.slice())if(!b.gone)stepBall(b,now,dt,isRound);
   S.balls=S.balls.filter(b=>!b.gone);
   if(raining(now)&&now>=S.rain.next){S.bananas.push({x:.08+Math.random()*.84,y:-.05,vy:.16+Math.random()*.08,until:S.rain.until+8000,w:Math.random()*6});S.rain.next=now+(S.rain.lvl>=3?750:1150)}
@@ -993,15 +993,26 @@ function fireAt(i,target){
 const boardTop=()=>Math.max(46,.11*W);
 const colPos=i=>({x:W*(i+.5)/P.n,y:boardTop()+.01*W});
 function pickHit(x,y){if(y>boardTop()+.16*W)return -1;for(const i of aliveOthers()){if(Math.abs(x-colPos(i).x)<W/P.n/2)return i}return -1}
-function drawPick(now,u){if(!S.pick)return;
+function drawPick(now,u){if(!S.pick)return;const k=S.slots[S.pick.slot];if(!k)return;
   ctx.save();
-  // dim the playfield a little and point up
-  ctx.fillStyle='rgba(29,18,48,.18)';ctx.fillRect(0,boardTop()+.17*u,W,Hpx);
-  ctx.font=`${Math.round(.04*u)}px "Bungee", "Arial Black", system-ui`;ctx.textAlign='center';ctx.lineWidth=6;ctx.strokeStyle='#fff';ctx.lineJoin='round';
-  const ty=boardTop()+.27*u+Math.sin(now/160)*4;ctx.strokeText('\u2191 Tap who gets it \u2191',W/2,ty);ctx.fillStyle=BAD;ctx.fillText('\u2191 Tap who gets it \u2191',W/2,ty);
-  for(const i of aliveOthers()){const p=colPos(i),r=.075*u*(1+.08*Math.sin(now/120+i));
-    ctx.strokeStyle=BAD;ctx.lineWidth=4;ctx.beginPath();ctx.arc(p.x,p.y+.02*u,r,0,7);ctx.stroke();
-    ctx.lineWidth=3;ctx.beginPath();for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ctx.moveTo(p.x+dx*r*.75,p.y+.02*u+dy*r*.75);ctx.lineTo(p.x+dx*r*1.25,p.y+.02*u+dy*r*1.25)}ctx.stroke()}
+  // crosshair on every opponent's paddle up in the scoreboard, with the attack's icon inside
+  for(const i of aliveOthers()){const p=colPos(i),cy=p.y+.02*u,r=.075*u*(1+.08*Math.sin(now/120+i));
+    ctx.strokeStyle=BAD;ctx.lineWidth=4;ctx.beginPath();ctx.arc(p.x,cy,r,0,7);ctx.stroke();
+    ctx.lineWidth=3;ctx.beginPath();for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ctx.moveTo(p.x+dx*r*.75,cy+dy*r*.75);ctx.lineTo(p.x+dx*r*1.25,cy+dy*r*1.25)}ctx.stroke();
+    drawFxIcon({k,t:0},p.x+r*.78,cy+r*.78,.024*u,now,u,false)}
+  // banner under the scoreboard: what you are shooting
+  const n=S.slotN[S.pick.slot]||1,lb=(k==='sticky'&&n>1?'SUPER STICKY':k==='banana'&&n>1?'BANANA RAIN':FX[k].label);
+  const ty=boardTop()+.24*u,txt='\u2191 '+lb+' \u2192 who? \u2191';
+  ctx.font=`${Math.round(.036*u)}px "Bungee", "Arial Black", system-ui`;ctx.textAlign='center';ctx.lineJoin='round';
+  const tw=ctx.measureText(txt).width,ir=.026*u,bw=tw+ir*2+28,bh=.06*u,bx=W/2-bw/2,by=ty-bh*.68+Math.sin(now/160)*2;
+  ctx.fillStyle='#fff';ctx.strokeStyle=BAD;ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(bx,by,bw,bh,bh/2);ctx.fill();ctx.stroke();
+  drawFxIcon({k,t:0},bx+10+ir,by+bh/2,ir,now,u,false);
+  ctx.fillStyle=BAD;ctx.textBaseline='middle';ctx.fillText(txt,bx+ir*2+16+tw/2,by+bh/2+1);ctx.textBaseline='alphabetic';
+  // the armed slot pulses red and says it is aiming
+  const sp=slotPos(S.pick.slot);ctx.strokeStyle=BAD;ctx.lineWidth=4;ctx.setLineDash([8,6]);ctx.lineDashOffset=-now/30;
+  ctx.beginPath();ctx.arc(sp.x,sp.y,sp.r+10+2*Math.sin(now/120),0,7);ctx.stroke();ctx.setLineDash([]);
+  ctx.font=`${Math.round(.022*u)}px "Bungee", "Arial Black", system-ui`;ctx.lineWidth=4;ctx.strokeStyle='#fff';ctx.fillStyle=BAD;
+  const cy2=sp.y-sp.r-10-.032*u;ctx.strokeText('tap = cancel',sp.x,cy2);ctx.fillText('tap = cancel',sp.x,cy2);
   ctx.restore()}
 // attacks fly as little icons: from a slot or a player to their target
 function addShot(a,b,k){(S.shots=S.shots||[]).push({a,b,k,t0:performance.now(),d:520})}
@@ -1043,7 +1054,13 @@ function drawParty(now,u){
   const n=P.n,top=Math.max(46,.11*u);
   for(let i=0;i<n;i++){const cx=u*(i+.5)/n,dead=P.lives[i]<=0,me=i===P.me;
     ctx.save();ctx.globalAlpha=dead?.35:me?1:.85;ctx.textAlign='center';ctx.fillStyle='#1d1230';
-    ctx.font=`${Math.round(.026*u)}px "Bungee", "Arial Black", system-ui`;ctx.fillText(me?'YOU':'P'+(i+1),cx,top-.03*u);
+    ctx.font=`${Math.round(.026*u)}px "Bungee", "Arial Black", system-ui`;
+    if(me){// my own column: a sticker card in my colour with a solid YOU tag
+      const cw=Math.min(u/n-8,.3*u),y0=top-.065*u,ch=.2*u;ctx.save();ctx.fillStyle='rgba(29,18,48,.15)';ctx.beginPath();ctx.roundRect(cx-cw/2+2,y0+4,cw,ch,14);ctx.fill();
+      ctx.fillStyle='#fff';ctx.strokeStyle=SEATC[i];ctx.lineWidth=4;ctx.beginPath();ctx.roundRect(cx-cw/2,y0,cw,ch,14);ctx.fill();ctx.stroke();
+      const tw=ctx.measureText('YOU').width+18,th=.036*u;ctx.fillStyle='#1d1230';ctx.beginPath();ctx.roundRect(cx-tw/2,top-.03*u-th*.72,tw,th,th/2);ctx.fill();
+      ctx.fillStyle='#fff';ctx.fillText('YOU',cx,top-.03*u);ctx.restore()}
+    else ctx.fillText('P'+(i+1),cx,top-.03*u);
     const st=me?myStat(now):(()=>{const q=P.st[i]||{fx:{}};return {on:k=>now<((q.fx||{})[k]||0),stk:q.stk||1,bbl:q.bbl||1,mult:1,banana:now<(q.banana||0)}})();
     drawPaddle(cx,top,.22,st,SEATC[i],now,u,0);
     const sc=P.score[i]||0,pp=(now-(i===P.me?popAt.sMe:0))<300?1.25:1;ctx.save();ctx.translate(cx,top+.085*u);ctx.scale(pp,pp);
